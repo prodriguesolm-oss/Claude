@@ -1,0 +1,1392 @@
+<title>Caderno de Palavras</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400..700;1,7..72,400..500&family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F3F5FA; --surface:#FFFFFF; --surface-2:#E9EDF7; --ink:#151836; --muted:#596084; --rule:#D9DEEE;
+  --accent:#2340C8; --accent-ink:#FFFFFF; --accent-soft:#E2E7FB; --margin:#E07A8D; --line:rgba(35,64,200,.085);
+  --ok:#157A4B; --ok-soft:#E0F2E9; --bad:#B02236; --bad-soft:#FBE5E8; --warn:#8F5B00; --warn-soft:#FFF1D6;
+  --shadow:0 1px 2px rgba(21,24,54,.06), 0 4px 16px rgba(21,24,54,.05);
+  --serif:"Literata", Georgia, "Times New Roman", serif;
+  --sans:"Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0E1122; --surface:#161A31; --surface-2:#1E2342; --ink:#E7E9F7; --muted:#9CA2C6; --rule:#2B3156;
+    --accent:#93A6FF; --accent-ink:#0E1122; --accent-soft:#232B57; --margin:#C8687A; --line:rgba(147,166,255,.07);
+    --ok:#5CD198; --ok-soft:#12302A; --bad:#FF8C9A; --bad-soft:#3A1822; --warn:#F1BA58; --warn-soft:#382B12;
+    --shadow:0 1px 2px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0E1122; --surface:#161A31; --surface-2:#1E2342; --ink:#E7E9F7; --muted:#9CA2C6; --rule:#2B3156;
+  --accent:#93A6FF; --accent-ink:#0E1122; --accent-soft:#232B57; --margin:#C8687A; --line:rgba(147,166,255,.07);
+  --ok:#5CD198; --ok-soft:#12302A; --bad:#FF8C9A; --bad-soft:#3A1822; --warn:#F1BA58; --warn-soft:#382B12;
+  --shadow:0 1px 2px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+button{font-family:inherit}
+.wrap{max-width:720px;margin:0 auto;padding-inline:16px;padding-block:18px 72px}
+
+/* topo */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px 16px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--rule)}
+.brand{font-family:var(--serif);font-weight:600;font-size:21px;letter-spacing:-.01em;margin:0;display:flex;align-items:center;gap:10px}
+.brand svg{flex:none}
+.tabs{display:flex;gap:4px;background:var(--surface-2);padding:4px;border-radius:999px}
+.tabs button{border:0;background:transparent;color:var(--muted);font-weight:600;font-size:14px;padding:7px 14px;border-radius:999px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.meta{display:flex;gap:6px 18px;flex-wrap:wrap;color:var(--muted);font-size:13px;margin-top:12px;font-variant-numeric:tabular-nums}
+.meta b{color:var(--ink);font-weight:600}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--muted);margin-right:6px;vertical-align:1px}
+.dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)}
+
+/* tipografia */
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.h{font-family:var(--serif);font-weight:600;font-size:clamp(26px,5.2vw,34px);line-height:1.15;letter-spacing:-.015em;margin:6px 0 8px;text-wrap:balance}
+.lead{color:var(--muted);margin:0 0 20px;max-width:62ch}
+.stack{display:grid;gap:10px}
+.page{padding-top:26px}
+
+/* botões */
+.btn{appearance:none;border:1px solid transparent;border-radius:10px;font-weight:600;font-size:14px;padding:9px 16px;min-height:42px;cursor:pointer;line-height:1.2;color:var(--ink);background:var(--surface-2)}
+.btn-primary{background:var(--accent);color:var(--accent-ink)}
+.btn-primary:hover{filter:brightness(1.08)}
+.btn-ghost{background:transparent;color:var(--muted);border-color:var(--rule)}
+.btn-ghost:hover{color:var(--ink);border-color:var(--muted)}
+.btn-lg{font-size:16px;padding:13px 22px;min-height:50px;border-radius:12px}
+.btn[disabled]{opacity:.55;cursor:default}
+.link{border:0;background:none;color:var(--accent);font-weight:600;font-size:14px;cursor:pointer;padding:6px 0;text-decoration:underline;text-underline-offset:3px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* como funciona */
+.how{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 0 22px;padding:0;list-style:none;counter-reset:how}
+.how li{counter-increment:how;font-size:14px;color:var(--muted);padding-top:10px;border-top:2px solid var(--rule)}
+.how li::before{content:counter(how);display:block;font-family:var(--serif);font-weight:600;font-size:20px;color:var(--accent);margin-bottom:2px}
+.how b{color:var(--ink);font-weight:600}
+@media (max-width:560px){.how{grid-template-columns:1fr}}
+
+/* sugestões */
+.opt{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px 16px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--r);padding:16px 16px 16px 20px;transition:border-color .15s}
+.opt:hover{border-color:color-mix(in srgb, var(--accent) 45%, var(--rule))}
+.opt .word{font-family:var(--serif);font-size:27px;font-weight:600;line-height:1.1;letter-spacing:-.01em}
+.opt .sub{color:var(--muted);font-size:13px;margin-top:5px;display:flex;gap:6px 10px;flex-wrap:wrap;align-items:center}
+.acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:540px){.opt{grid-template-columns:1fr}.acts{justify-content:flex-start}}
+.badge{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.cls{font-family:var(--serif);font-style:italic;color:var(--accent)}
+.note{background:var(--surface-2);border-radius:12px;padding:14px 16px;font-size:14px;color:var(--muted);margin-top:18px}
+.note b{color:var(--ink)}
+
+/* verbete */
+.entry{position:relative;border:1px solid var(--rule);border-radius:var(--r);padding:26px 22px 26px 46px;overflow:hidden;
+  background:linear-gradient(var(--line) 1px, transparent 1px) 0 13px / 100% 30px, var(--surface)}
+.entry::before{content:"";position:absolute;left:28px;top:0;bottom:0;width:2px;background:var(--margin);opacity:.55}
+.hw{font-family:var(--serif);font-size:clamp(40px,10vw,62px);font-weight:600;line-height:1.02;letter-spacing:-.025em;margin:8px 0 10px;overflow-wrap:anywhere}
+.pron{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px;font-size:15px}
+.syl{font-family:var(--serif);font-size:18px;color:var(--muted);letter-spacing:.01em}
+.syl b{color:var(--ink);font-weight:700}
+.def{font-family:var(--serif);font-size:clamp(19px,3.6vw,22px);line-height:1.45;margin:16px 0 0;max-width:34em}
+.listen{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);border-radius:999px;padding:5px 12px 5px 9px;font-size:13px;font-weight:600;cursor:pointer}
+.listen:hover{border-color:var(--accent);color:var(--accent)}
+.mini{border:0;background:none;color:var(--muted);cursor:pointer;padding:4px;border-radius:6px;vertical-align:middle;line-height:0}
+.mini:hover{color:var(--accent)}
+.sec{margin-top:30px}
+.sec h2{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+.ex{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.ex li{font-family:var(--serif);font-size:18px;line-height:1.5;padding-left:16px;border-left:2px solid var(--accent-soft);display:flex;gap:8px;align-items:flex-start;justify-content:space-between}
+mark{background:var(--accent-soft);color:var(--ink);padding:0 .18em;border-radius:4px;font-weight:600}
+.tbl{overflow-x:auto;border:1px solid var(--rule);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--surface-2);white-space:nowrap}
+td.f{font-family:var(--serif);font-weight:600;font-size:17px;white-space:nowrap}
+td.p{color:var(--muted);white-space:nowrap;font-size:14px}
+td.c{font-family:var(--serif);font-size:16.5px;white-space:nowrap}
+@media (max-width:480px){th,td{padding:9px 10px}td.p{white-space:normal}}
+.foot{font-size:13.5px;color:var(--muted);margin-top:10px}
+.foot b{color:var(--ink);font-family:var(--serif)}
+.pairs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+@media (max-width:520px){.pairs{grid-template-columns:1fr}}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:4px 11px;border-radius:999px;background:var(--surface);border:1px solid var(--rule);font-size:14px}
+.tip{background:var(--warn-soft);border-radius:12px;padding:14px 16px;font-size:15px}
+.tip b{color:var(--warn)}
+.cta{margin-top:32px;display:flex;align-items:center;gap:10px 18px;flex-wrap:wrap}
+.cta span{color:var(--muted);font-size:14px}
+
+/* prova */
+.qhead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.sectag{font-weight:600;color:var(--ink)}
+.sectag.rev{color:var(--warn)}
+.bar{height:6px;background:var(--surface-2);border-radius:999px;overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:999px;transition:width .3s}
+.qcard{background:var(--surface);border:1px solid var(--rule);border-radius:var(--r);padding:22px 20px;margin-top:16px;box-shadow:var(--shadow)}
+.qp{font-family:var(--serif);font-size:clamp(20px,4.4vw,24px);line-height:1.42;margin:10px 0 18px;text-wrap:pretty}
+.blank{display:inline-block;min-width:4.2em;border-bottom:2px solid var(--accent);height:1.05em;vertical-align:-.15em}
+.filled{border-bottom:2px solid currentColor;padding:0 .12em;font-weight:600}
+.filled.ok{color:var(--ok)} .filled.bad{color:var(--bad)}
+.choices{display:grid;gap:8px}
+.choice{display:flex;gap:12px;align-items:flex-start;text-align:left;width:100%;background:var(--bg);border:1px solid var(--rule);border-radius:12px;padding:12px 14px;font-size:16px;font-weight:500;line-height:1.4;color:var(--ink);cursor:pointer}
+.choice .l{flex:none;width:26px;height:26px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-size:13px;font-weight:700;color:var(--muted)}
+.choice:hover:not([disabled]){border-color:var(--accent)}
+.choice[disabled]{cursor:default}
+.choice.is-ok{border-color:var(--ok);background:var(--ok-soft)}
+.choice.is-ok .l{background:var(--ok);color:var(--surface)}
+.choice.is-bad{border-color:var(--bad);background:var(--bad-soft)}
+.choice.is-bad .l{background:var(--bad);color:var(--surface)}
+.choice.dim{opacity:.6}
+.hint{font-size:14px;color:var(--muted);margin:-6px 0 14px}
+.typed{display:flex;gap:8px;flex-wrap:wrap}
+.typed input{flex:1 1 220px;min-width:0;font-family:var(--serif);font-size:19px;padding:11px 14px;border-radius:12px;border:1px solid var(--rule);background:var(--bg);color:var(--ink)}
+.typed input:focus{border-color:var(--accent);outline:none}
+.fb{margin-top:16px;border-radius:12px;padding:14px 16px}
+.fb.ok{background:var(--ok-soft)} .fb.bad{background:var(--bad-soft)}
+.fb h3{margin:0 0 6px;font-size:16px}
+.fb.ok h3{color:var(--ok)} .fb.bad h3{color:var(--bad)}
+.fb p{margin:6px 0 0;font-size:15px}
+.fb .ans{font-family:var(--serif);font-weight:600}
+.next{margin-top:16px;display:flex;justify-content:flex-end}
+
+/* resultado */
+.score{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:18px}
+.score > div{background:var(--surface);border:1px solid var(--rule);border-radius:var(--r);padding:16px 18px}
+.score .n{font-family:var(--serif);font-size:40px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;margin-top:6px}
+.score .n small{font-size:20px;color:var(--muted);font-weight:500}
+.score .k{font-size:13px;color:var(--muted)}
+.miss{background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--bad);border-radius:12px;padding:14px 16px}
+.miss .qp{font-size:17px;margin:4px 0 8px}
+.miss p{margin:4px 0;font-size:14.5px}
+.clock{font-variant-numeric:tabular-nums}
+
+/* lista */
+.row{display:grid;grid-template-columns:1fr auto;gap:4px 14px;align-items:center;background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:12px 16px;cursor:pointer;text-align:left;width:100%;color:var(--ink);font-size:14px}
+.row:hover{border-color:var(--accent)}
+.row .word{font-family:var(--serif);font-size:20px;font-weight:600}
+.row .sub{color:var(--muted);font-size:13px}
+.row .right{text-align:right;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px}
+.pill.rev{background:var(--warn-soft);color:var(--warn)}
+.pill.done{background:var(--ok-soft);color:var(--ok)}
+.pill.new{background:var(--accent-soft);color:var(--accent)}
+.kchip{display:inline-flex;align-items:center;gap:4px;padding:4px 6px 4px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--rule);font-family:var(--serif);font-size:15px}
+.kchip button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:12px;font-family:var(--sans);font-weight:600;padding:3px 8px;border-radius:999px}
+.kchip button:hover{background:var(--surface-2);color:var(--accent)}
+.empty{color:var(--muted);font-size:14px}
+.back{margin-bottom:12px}
+
+/* aviso flutuante */
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom, 0px));background:var(--ink);color:var(--bg);border-radius:12px;padding:10px 10px 10px 16px;display:flex;gap:14px;align-items:center;font-size:14px;box-shadow:0 8px 30px rgba(0,0,0,.25);max-width:calc(100% - 32px);z-index:10}
+.toast button{border:0;background:transparent;color:var(--bg);font-weight:700;cursor:pointer;padding:6px 10px;border-radius:8px;text-decoration:underline;text-underline-offset:3px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<div class="wrap">
+  <header class="top">
+    <h1 class="brand">
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="3" y="2" width="20" height="22" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="8" y1="2" x2="8" y2="24" stroke="var(--margin)" stroke-width="1.6"/><line x1="11" y1="9" x2="19" y2="9" stroke="currentColor" stroke-width="1.4" opacity=".5"/><line x1="11" y1="13" x2="19" y2="13" stroke="currentColor" stroke-width="1.4" opacity=".5"/><line x1="11" y1="17" x2="16" y2="17" stroke="currentColor" stroke-width="1.4" opacity=".5"/></svg>
+      Caderno de Palavras
+    </h1>
+    <nav class="tabs" role="tablist" aria-label="Seções">
+      <button id="tab-hoje" role="tab" data-act="tab" data-id="hoje" aria-selected="true">Hoje</button>
+      <button id="tab-lista" role="tab" data-act="tab" data-id="lista" aria-selected="false">Minhas palavras</button>
+    </nav>
+  </header>
+  <div class="meta" id="meta"></div>
+  <main id="app" aria-live="polite"></main>
+</div>
+<div id="toast-slot"></div>
+<script>
+const BANK = [];
+// Banco de palavras (parte 1). Formato de cada item:
+// id, w (palavra), c (classe), syl (sílabas, ^ = tônica), def, g (sentido curto),
+// fam [[forma, classe, sentido]], verb (infinitivo, opcional), ex (frases com *destaque*),
+// q [[frase com ___, resposta, [3 erradas], explicação, base]], u [certa, [erradas], explicação],
+// syn, ant, tip
+BANK.push(
+{id:"ludibriar", w:"ludibriar", c:"v", syl:"lu-di-bri-^ar",
+ def:"Enganar alguém de forma esperta, geralmente para tirar alguma vantagem.",
+ g:"enganar alguém com esperteza",
+ fam:[["ludibriar","v","enganar com astúcia"],["ludíbrio","sm","o engano, a trapaça"],["ludibriado","adj","que foi enganado"]],
+ verb:"ludibriar",
+ ex:["Não se deixe *ludibriar* por promoções que parecem boas demais para ser verdade.","Ele se sentiu *ludibriado* quando descobriu que o carro já tinha sido batido.","Aquele anúncio foi puro *ludíbrio*: o produto nem existia."],
+ q:[["O golpista ___ dezenas de aposentados com falsas promessas de lucro no ano passado.","ludibriou",["ludíbrio","ludibriado","ludibriar"],"A ação já aconteceu e o sujeito é “o golpista” (ele): pretérito perfeito, ele ludibriou.","ludibriar"],
+    ["Depois de ler as letras miúdas, percebi que tinha sido ___.","ludibriado",["ludibriou","ludíbrio","ludibriando"],"Depois de “ter sido” usamos o particípio: fui ludibriado = fui enganado.","ludibriar"],
+    ["A propaganda enganosa é um ___ contra o consumidor.","ludíbrio",["ludibriado","ludibriar","ludibria"],"Depois do artigo “um” precisamos de um substantivo: o ludíbrio (o engano).","ludibriar"],
+    ["Eles estão sempre tentando nos ___ com esse papo de investimento garantido.","ludibriar",["ludibriamos","ludíbrio","ludibriado"],"Depois de “tentar” o verbo fica no infinitivo: tentar ludibriar.","ludibriar"]],
+ u:["O vendedor tentou me ludibriar, mas eu li o contrato inteiro.",["Ela ludibriou de alegria quando recebeu a notícia.","Vou ludibriar a mesa antes do jantar."],"Ludibriar é sempre enganar alguém. Não tem relação com alegria nem com arrumar coisas."],
+ syn:["enganar","iludir","tapear","engambelar"], ant:["esclarecer","alertar"],
+ tip:"Estrutura: ludibriar alguém. No dia a dia, “enganar” é mais comum; “ludibriar” soa mais forte e mais formal."},
+
+{id:"corroborar", w:"corroborar", c:"v", syl:"cor-ro-bo-^rar",
+ def:"Confirmar ou reforçar uma ideia, uma informação ou uma suspeita com novas provas ou argumentos.",
+ g:"confirmar algo com provas ou argumentos",
+ fam:[["corroborar","v","confirmar, reforçar"],["corroboração","sf","a confirmação"],["corroborado","adj","confirmado"]],
+ verb:"corroborar",
+ ex:["Os exames *corroboraram* o que o médico já suspeitava.","Não tenho como *corroborar* essa história, eu não estava lá.","A *corroboração* das testemunhas foi decisiva para o caso."],
+ q:[["Ontem, os exames ___ a suspeita do médico.","corroboraram",["corroboração","corroborando","corroborado"],"“Ontem” indica passado e o sujeito é “os exames” (eles): pretérito perfeito, eles corroboraram.","corroborar"],
+    ["O depoimento da vizinha serviu de ___ para a versão do porteiro.","corroboração",["corroborar","corroborado","corroborou"],"Depois de “serviu de” precisamos de um substantivo: a corroboração.","corroborar"],
+    ["A hipótese só foi aceita depois de ser ___ por outros pesquisadores.","corroborada",["corroborou","corroboração","corroborar"],"Depois de “ser” vem o particípio, que concorda com “a hipótese” (feminino): corroborada.","corroborar"],
+    ["Pode anotar: eu ___ cada palavra que ela está dizendo.","corroboro",["corroboração","corrobora","corroborado"],"Sujeito “eu” no presente: eu corroboro.","corroborar"]],
+ u:["As fotos corroboram a versão do motorista.",["Vou corroborar o bolo com chocolate.","Ele corroborou de medo durante o filme."],"Corroborar é confirmar ou reforçar uma informação. Não é decorar nem reagir com medo."],
+ syn:["confirmar","comprovar","reforçar"], ant:["refutar","desmentir","contradizer"],
+ tip:"Muito usado em notícias, relatórios e discussões: “os números corroboram a tese”."},
+
+{id:"mitigar", w:"mitigar", c:"v", syl:"mi-ti-^gar",
+ def:"Diminuir a intensidade ou os efeitos de algo ruim, como um risco, uma dor ou um prejuízo.",
+ g:"diminuir os efeitos de algo ruim",
+ fam:[["mitigar","v","suavizar, reduzir"],["mitigação","sf","a redução de um risco ou dano"],["mitigado","adj","reduzido, atenuado"]],
+ verb:"mitigar",
+ ex:["Beber bastante água ajuda a *mitigar* os efeitos do calor.","A empresa criou um plano de *mitigação* de riscos para a troca de sistema.","Com a conferência dupla, *mitigamos* a chance de erro nos relatórios."],
+ q:[["Na semana passada, eu ___ o problema ligando para cada cliente afetado.","mitiguei",["mitigação","mitigou","mitigado"],"Sujeito “eu” no passado: eu mitiguei. O “g” vira “gu” antes do “e” para manter o som (mitig + ei = mitiguei).","mitigar"],
+    ["O novo procedimento de conferência serve para ___ o risco de erro.","mitigar",["mitigação","mitiguei","mitigado"],"Depois de “serve para” usamos o infinitivo: para mitigar.","mitigar"],
+    ["A ___ dos danos começou logo depois da enchente.","mitigação",["mitigar","mitigado","mitiga"],"Depois do artigo “a” vem o substantivo: a mitigação.","mitigar"],
+    ["Hoje em dia, a equipe ___ esse risco com uma checagem automática.","mitiga",["mitigação","mitigando","mitiguei"],"Sujeito “a equipe” (ela) no presente: ela mitiga.","mitigar"]],
+ u:["O seguro ajuda a mitigar o prejuízo em caso de acidente.",["Vou mitigar meu cabelo antes da festa.","Ela mitigou a festa, foi a melhor do ano."],"Mitigar é reduzir algo ruim (risco, dor, prejuízo). Não se usa para coisas boas nem para ações como arrumar o cabelo."],
+ syn:["atenuar","amenizar","suavizar","reduzir"], ant:["agravar","exacerbar"],
+ tip:"Muito comum no mundo corporativo e financeiro: “mitigar riscos”. Atenção à grafia: eu mitigo, mas eu mitiguei."},
+
+{id:"exacerbar", w:"exacerbar", c:"v", syl:"e-xa-cer-^bar",
+ def:"Tornar algo mais forte, mais intenso ou pior do que já era (um problema, um sentimento, uma dor).",
+ g:"tornar algo pior ou mais intenso",
+ fam:[["exacerbar","v","agravar, intensificar"],["exacerbação","sf","o agravamento"],["exacerbado","adj","exagerado, intenso demais"]],
+ verb:"exacerbar",
+ ex:["Ficar discutindo pelo WhatsApp só vai *exacerbar* a briga.","Ele tem um espírito competitivo *exacerbado*, não aceita perder nem no par ou ímpar.","O médico notou uma *exacerbação* da alergia depois da troca de remédio."],
+ q:[["No mês passado, a falta de comunicação ___ o conflito entre as equipes.","exacerbou",["exacerbação","exacerbado","exacerbar"],"“No mês passado” indica passado; sujeito “a falta” (ela): ela exacerbou.","exacerbar"],
+    ["Ela tem um perfeccionismo ___: refaz o mesmo e-mail cinco vezes.","exacerbado",["exacerbou","exacerbação","exacerbar"],"Precisamos de um adjetivo para qualificar “perfeccionismo” (masculino): exacerbado.","exacerbar"],
+    ["Evite café à noite para não ___ a insônia.","exacerbar",["exacerbado","exacerbação","exacerba"],"Depois de “para não” vem o infinitivo: para não exacerbar.","exacerbar"],
+    ["Os sintomas pioraram muito: houve uma ___ do quadro.","exacerbação",["exacerbado","exacerbar","exacerbou"],"Depois de “uma” vem o substantivo: uma exacerbação.","exacerbar"]],
+ u:["O calor exacerbou o mau humor de todo mundo no escritório.",["Exacerbei o carro no posto de gasolina.","Ele exacerbou a dor com um analgésico e ficou ótimo."],"Exacerbar é piorar ou intensificar. Um analgésico alivia a dor, então “exacerbou a dor” não combina com “ficou ótimo”."],
+ syn:["agravar","intensificar","acirrar","piorar"], ant:["atenuar","mitigar","aliviar"],
+ tip:"O “x” tem som de “z”: e-za-cer-bar."},
+
+{id:"elucidar", w:"elucidar", c:"v", syl:"e-lu-ci-^dar",
+ def:"Explicar algo de forma clara, tirando as dúvidas ou revelando o que estava obscuro.",
+ g:"esclarecer, explicar com clareza",
+ fam:[["elucidar","v","esclarecer"],["elucidação","sf","o esclarecimento"],["elucidativo","adj","que esclarece, explicativo"]],
+ verb:"elucidar",
+ ex:["Você pode *elucidar* esse ponto? Não entendi o que muda na prática.","A reunião foi bem *elucidativa*: agora sei exatamente o que fazer.","A polícia ainda não chegou à *elucidação* do caso."],
+ q:[["Na aula de ontem, o professor ___ a dúvida em dois minutos.","elucidou",["elucidação","elucidativo","elucidando"],"“Ontem” indica passado; sujeito “o professor” (ele): ele elucidou.","elucidar"],
+    ["O vídeo foi muito ___: finalmente entendi como funciona o imposto de renda.","elucidativo",["elucidou","elucidação","elucidar"],"Precisamos de um adjetivo para descrever “o vídeo”: elucidativo (que esclarece).","elucidar"],
+    ["Precisamos ___ essa diferença antes de enviar o relatório ao cliente.","elucidar",["elucidativo","elucidamos","elucidação"],"Depois de “precisamos” o verbo fica no infinitivo: precisamos elucidar.","elucidar"],
+    ["A ___ do mistério só veio no último capítulo da série.","elucidação",["elucidar","elucidativa","elucidou"],"Depois do artigo “a” vem o substantivo: a elucidação.","elucidar"]],
+ u:["O gerente elucidou as mudanças no processo para toda a equipe.",["Vou elucidar a luz da sala, está muito escuro.","Ele elucidou o café e foi trabalhar."],"Apesar de lembrar “luz”, elucidar não é acender nada: é esclarecer ideias, fatos e dúvidas."],
+ syn:["esclarecer","explicar","aclarar"], ant:["confundir","obscurecer"],
+ tip:"Vem do latim “lux” (luz): elucidar é “trazer luz” a uma questão. Só se usa em sentido figurado."},
+
+{id:"protelar", w:"protelar", c:"v", syl:"pro-te-^lar",
+ def:"Adiar algo de propósito, deixando para depois, muitas vezes sem necessidade.",
+ g:"adiar, deixar para depois",
+ fam:[["protelar","v","adiar"],["protelação","sf","o adiamento"],["protelatório","adj","que serve para adiar"]],
+ verb:"protelar",
+ ex:["Chega de *protelar*: vou marcar o dentista hoje.","O advogado entrou com um recurso *protelatório* só para ganhar tempo.","A *protelação* da decisão deixou todo mundo ansioso."],
+ q:[["Eles ___ a reforma da cozinha por três anos, e agora está tudo caindo.","protelaram",["protelação","protelatório","protelando"],"A ação aconteceu no passado e o sujeito é “eles”: eles protelaram.","protelar"],
+    ["Não dá mais para ___ essa conversa com o chefe.","protelar",["protelação","protelou","protelatório"],"Depois de “dá para” usamos o infinitivo: dá para protelar.","protelar"],
+    ["Esse pedido de mais prazo é claramente ___.","protelatório",["protelar","protelação","protelou"],"Precisamos de um adjetivo para qualificar “esse pedido”: protelatório (feito para adiar).","protelar"],
+    ["Toda segunda-feira eu ___ a academia para a semana seguinte.","protelo",["protelação","protela","protelatório"],"Sujeito “eu” com ação habitual no presente: eu protelo.","protelar"]],
+ u:["Ela protelou a entrega do trabalho até a última hora.",["Vou protelar você na estação às oito.","O time protelou o jogo por 3 a 0."],"Protelar é adiar. Não significa buscar alguém nem vencer uma partida."],
+ syn:["adiar","postergar","procrastinar","retardar"], ant:["antecipar","adiantar"],
+ tip:"Protelar é adiar algo específico (protelar uma decisão). Procrastinar fala mais do hábito de deixar tudo para depois."},
+
+{id:"fomentar", w:"fomentar", c:"v", syl:"fo-men-^tar",
+ def:"Estimular, incentivar ou promover o desenvolvimento de algo.",
+ g:"estimular, incentivar o crescimento",
+ fam:[["fomentar","v","incentivar, promover"],["fomento","sm","o incentivo, o estímulo"],["fomentador","adj","que incentiva"]],
+ verb:"fomentar",
+ ex:["A empresa quer *fomentar* a troca de ideias entre as áreas.","Existem bancos de *fomento* que financiam pequenas empresas.","Fofoca no escritório só *fomenta* a desconfiança."],
+ q:[["O governo lançou um programa de ___ ao turismo.","fomento",["fomentar","fomentado","fomentou"],"Depois de “programa de” vem um substantivo: fomento (incentivo).","fomentar"],
+    ["Boas lideranças ___ a colaboração no dia a dia.","fomentam",["fomento","fomentando","fomentou"],"Sujeito “boas lideranças” (elas), fato geral no presente: elas fomentam.","fomentar"],
+    ["No ano passado, a prefeitura ___ a criação de hortas comunitárias.","fomentou",["fomento","fomentam","fomentar"],"“No ano passado” indica passado; sujeito “a prefeitura” (ela): ela fomentou.","fomentar"],
+    ["Queremos ___ o hábito da leitura entre as crianças.","fomentar",["fomento","fomentamos","fomentado"],"Depois de “queremos” o verbo fica no infinitivo: queremos fomentar.","fomentar"]],
+ u:["O clube do livro fomenta a leitura no bairro.",["Estou fomentando de fome, vamos almoçar?","Ele fomentou a porta com força."],"Fomentar não tem relação com fome: significa incentivar ou estimular algo."],
+ syn:["incentivar","estimular","promover","impulsionar"], ant:["desestimular","inibir","coibir"],
+ tip:"Cuidado com o falso parentesco: fomentar não vem de “fome”. Pense em “fomento” como “incentivo”."},
+
+{id:"tergiversar", w:"tergiversar", c:"v", syl:"ter-gi-ver-^sar",
+ def:"Fugir do assunto ou responder de forma vaga para evitar uma pergunta direta.",
+ g:"fugir do assunto, enrolar na resposta",
+ fam:[["tergiversar","v","desconversar"],["tergiversação","sf","a enrolação, a evasiva"]],
+ verb:"tergiversar",
+ ex:["Perguntei quanto custava e ele começou a *tergiversar*.","Chega de *tergiversação*: você vai ou não vai à festa?","O candidato *tergiversou* a entrevista toda e não respondeu nada."],
+ q:[["Quando perguntei do atraso, o fornecedor ___ e mudou de assunto.","tergiversou",["tergiversação","tergiversar","tergiversando"],"Ação no passado, sujeito “o fornecedor” (ele): ele tergiversou.","tergiversar"],
+    ["Por favor, responda com sim ou não, sem ___.","tergiversar",["tergiversou","tergiversação","tergiversamos"],"Depois de “sem” o verbo vai para o infinitivo: sem tergiversar.","tergiversar"],
+    ["A resposta do político foi pura ___.","tergiversação",["tergiversar","tergiversou","tergiversado"],"Depois de “pura” precisamos de um substantivo: tergiversação.","tergiversar"],
+    ["Sempre que o assunto é dinheiro, meus tios ___.","tergiversam",["tergiversação","tergiversa","tergiversou"],"Sujeito “meus tios” (eles), hábito no presente: eles tergiversam.","tergiversar"]],
+ u:["Ele tergiversou quando perguntei onde tinha passado a noite.",["Vou tergiversar o arroz com um pouco de sal.","Ela tergiversou a maratona em primeiro lugar."],"Tergiversar é fugir de uma pergunta ou de um assunto. Não é temperar comida nem vencer uma corrida."],
+ syn:["desconversar","enrolar","divagar"], ant:["ir direto ao ponto"],
+ tip:"Palavra formal, comum em política e jornalismo. No dia a dia, o equivalente é “desconversar” ou “enrolar”."},
+
+{id:"dissuadir", w:"dissuadir", c:"v", syl:"dis-su-a-^dir",
+ def:"Convencer alguém a desistir de uma ideia ou de uma decisão.",
+ g:"convencer alguém a desistir",
+ fam:[["dissuadir","v","fazer desistir"],["dissuasão","sf","o ato de fazer desistir"],["dissuasivo","adj","que faz desistir"]],
+ verb:"dissuadir",
+ ex:["Tentei *dissuadir* meu irmão de comprar aquele carro, mas ele não ouviu.","O preço alto *dissuade* muita gente de viajar em dezembro.","As câmeras têm um efeito *dissuasivo*: os furtos diminuíram."],
+ q:[["Ontem a minha mãe me ___ de largar o curso.","dissuadiu",["dissuasão","dissuade","dissuasivo"],"“Ontem” indica passado; sujeito “a minha mãe” (ela): ela dissuadiu.","dissuadir"],
+    ["Placas de alerta têm um papel ___ para evitar acidentes.","dissuasivo",["dissuadir","dissuasão","dissuadido"],"Precisamos de um adjetivo que qualifique “papel”: dissuasivo. Repare que a família troca o “d” por “s”: dissuadir → dissuasão, dissuasivo.","dissuadir"],
+    ["Nada vai me ___ dessa viagem, já comprei as passagens!","dissuadir",["dissuasão","dissuadiu","dissuasivo"],"Depois de “vai” (futuro com ir) vem o infinitivo: vai dissuadir.","dissuadir"],
+    ["A ___ funcionou e o concorrente desistiu da proposta.","dissuasão",["dissuadir","dissuadido","dissuasivo"],"Depois do artigo “a” vem o substantivo: a dissuasão. Atenção: não existe “dissuação”.","dissuadir"]],
+ u:["O médico conseguiu dissuadi-lo de parar o tratamento.",["Vou dissuadir um bolo para o aniversário dela.","Ele dissuadiu o suco com água gelada."],"Dissuadir é fazer alguém desistir de algo: dissuadir alguém de alguma coisa."],
+ syn:["desencorajar","demover","desaconselhar"], ant:["persuadir","convencer","incentivar"],
+ tip:"É o oposto de persuadir. Estrutura: dissuadir alguém DE algo (dissuadi-o de viajar)."},
+
+{id:"ratificar", w:"ratificar", c:"v", syl:"ra-ti-fi-^car",
+ def:"Confirmar oficialmente algo que já foi dito, decidido ou assinado.",
+ g:"confirmar oficialmente",
+ fam:[["ratificar","v","confirmar oficialmente"],["ratificação","sf","a confirmação oficial"],["ratificado","adj","confirmado"]],
+ verb:"ratificar",
+ ex:["O diretor *ratificou* a decisão tomada na reunião de ontem.","Só vou considerar fechado depois que você *ratificar* por e-mail.","O acordo ainda depende da *ratificação* do Congresso."],
+ q:[["Na assembleia de ontem, os sócios ___ o novo contrato.","ratificaram",["ratificação","ratificado","retificaram"],"“Ontem” indica passado; sujeito “os sócios” (eles): eles ratificaram. Retificar é outra coisa: corrigir.","ratificar"],
+    ["Confirmo e ___ o que disse na reunião: o prazo é sexta-feira.","ratifico",["retifico","ratificação","ratifica"],"Sujeito “eu” no presente, em paralelo com “confirmo”: eu ratifico. “Retifico” seria corrigir, o que não combina com repetir o que foi dito.","ratificar"],
+    ["Semana passada eu ___ a proposta por escrito.","ratifiquei",["ratificou","ratificação","ratificei"],"Sujeito “eu” no passado: eu ratifiquei. O “c” vira “qu” antes do “e” para manter o som de “k”.","ratificar"],
+    ["O tratado entra em vigor após a ___ pelos dois países.","ratificação",["ratificar","retificação","ratificado"],"Depois de “a” vem o substantivo: a ratificação (confirmação oficial). “Retificação” seria uma correção.","ratificar"]],
+ u:["O conselho ratificou a escolha do novo diretor.",["Preciso ratificar o erro de digitação no documento.","O cabeleireiro ratificou meu cabelo."],"Ratificar é confirmar. Para corrigir um erro, o verbo certo é retificar (com “e”)."],
+ syn:["confirmar","validar","homologar"], ant:["revogar","anular"],
+ tip:"Não confunda: RAtificar = confirmar; REtificar = corrigir (pense em “reto”). “Retifico o valor enviado” = estou corrigindo o valor."},
+
+{id:"aquiescer", w:"aquiescer", c:"v", syl:"a-qui-es-^cer",
+ def:"Concordar ou aceitar algo, geralmente depois de um pedido, sem se opor.",
+ g:"concordar, aceitar sem se opor",
+ fam:[["aquiescer","v","concordar, consentir"],["aquiescência","sf","a concordância, o consentimento"],["aquiescente","adj","que concorda"]],
+ verb:"aquiescer",
+ ex:["Depois de muita insistência, meu pai *aquiesceu* e me emprestou o carro.","Ela *aquiesce* a tudo o que o chefe pede, nunca discorda.","A mudança só foi feita com a *aquiescência* de todos os moradores."],
+ q:[["No fim da reunião, o cliente ___ com a nova taxa.","aquiesceu",["aquiescência","aquiescente","aquiesce"],"Ação concluída no passado; sujeito “o cliente” (ele): ele aquiesceu.","aquiescer"],
+    ["Nada pode ser alterado sem a ___ dos sócios.","aquiescência",["aquiescer","aquiesceu","aquiescente"],"Depois de “a” vem o substantivo: a aquiescência (o consentimento).","aquiescer"],
+    ["Se você insistir um pouco, eu ___.","aquiesço",["aquiesco","aquiescência","aquiesce"],"Sujeito “eu” no presente: eu aquiesço. Verbos terminados em -cer trocam o “c” por “ç” antes do “o”.","aquiescer"],
+    ["Ele não queria, mas acabou por ___ ao pedido da filha.","aquiescer",["aquiesceu","aquiescência","aquiesço"],"Depois de “acabou por” vem o infinitivo: acabou por aquiescer.","aquiescer"]],
+ u:["Após muita conversa, a diretora aquiesceu ao pedido de home office.",["Vou aquiescer a água para fazer o café.","O inverno aquiesceu a casa com a lareira."],"Apesar do som parecido com “aquecer”, aquiescer significa concordar, aceitar."],
+ syn:["consentir","concordar","anuir","ceder"], ant:["recusar","negar","discordar"],
+ tip:"Não confunda com aquecer! A-qui-es-cer = concordar. Construções: aquiescer a algo ou aquiescer com algo."}
+);
+// Banco de palavras (parte 2)
+BANK.push(
+{id:"esmorecer", w:"esmorecer", c:"v", syl:"es-mo-re-^cer",
+ def:"Perder o ânimo, a força ou o entusiasmo aos poucos.",
+ g:"perder o ânimo, desanimar",
+ fam:[["esmorecer","v","desanimar"],["esmorecimento","sm","o desânimo"],["esmorecido","adj","desanimado, sem forças"]],
+ verb:"esmorecer",
+ ex:["Não *esmoreça*: a primeira semana na academia é sempre a mais difícil.","O entusiasmo do time *esmoreceu* depois do segundo gol do adversário.","Ele chegou em casa *esmorecido* depois de um dia inteiro de reuniões."],
+ q:[["Com o passar dos meses, o interesse dela pelo curso ___.","esmoreceu",["esmorecimento","esmorecido","esmorecer"],"Mudança que aconteceu no passado; sujeito “o interesse” (ele): ele esmoreceu.","esmorecer"],
+    ["Mesmo com as críticas, eu não ___: continuo tentando.","esmoreço",["esmoreco","esmorecimento","esmorece"],"Sujeito “eu” no presente: eu esmoreço. Em verbos terminados em -cer, o “c” vira “ç” antes do “o”.","esmorecer"],
+    ["Depois da demissão, ele passou por um período de ___.","esmorecimento",["esmorecer","esmoreceu","esmorecido"],"Depois de “período de” vem um substantivo: esmorecimento.","esmorecer"],
+    ["Os voluntários estavam ___ depois de doze horas de trabalho.","esmorecidos",["esmoreceram","esmorecimento","esmorecer"],"Depois de “estavam” usamos o adjetivo, concordando com “os voluntários” (masculino plural): esmorecidos.","esmorecer"]],
+ u:["O público esmoreceu quando a banda cancelou o bis.",["Esmoreci o bolo no forno por 40 minutos.","Ele esmoreceu de rir com a piada."],"Esmorecer é desanimar, perder a força. Não tem relação com cozinhar nem com rir muito."],
+ syn:["desanimar","enfraquecer","fraquejar"], ant:["animar-se","fortalecer-se","entusiasmar-se"],
+ tip:"Muito usado na forma negativa, como incentivo: “não esmoreça!” (não desanime!)."},
+
+{id:"arrefecer", w:"arrefecer", c:"v", syl:"ar-re-fe-^cer",
+ def:"Esfriar ou perder a intensidade. Serve para temperatura e, principalmente, para sentimentos e situações.",
+ g:"esfriar, perder a intensidade",
+ fam:[["arrefecer","v","esfriar, desacelerar"],["arrefecimento","sm","o esfriamento, a desaceleração"],["arrefecido","adj","esfriado, mais calmo"]],
+ verb:"arrefecer",
+ ex:["Espera o café *arrefecer* um pouco antes de beber.","Depois da discussão, os ânimos *arrefeceram* e eles voltaram a conversar.","Os jornais falam em *arrefecimento* da economia no segundo semestre."],
+ q:[["A inflação ___ nos últimos meses, segundo o relatório.","arrefeceu",["arrefecimento","arrefecido","arrefecer"],"Sujeito “a inflação” (ela) e fato no passado recente: ela arrefeceu.","arrefecer"],
+    ["O ___ das vendas preocupou a diretoria.","arrefecimento",["arrefecer","arrefeceu","arrefecido"],"Depois de “o” vem o substantivo: o arrefecimento (a desaceleração).","arrefecer"],
+    ["Eu ___ rápido: depois de cinco minutos já nem lembro por que fiquei bravo.","arrefeço",["arrefeco","arrefecimento","arrefece"],"Sujeito “eu” no presente: eu arrefeço (o “c” vira “ç” antes do “o”).","arrefecer"],
+    ["O motor precisa ___ antes de você abrir o capô.","arrefecer",["arrefecimento","arrefeceu","arrefecido"],"Depois de “precisa” vem o infinitivo: precisa arrefecer.","arrefecer"]],
+ u:["Com o tempo, a paixão deles arrefeceu.",["Vou arrefecer a sopa no micro-ondas para ela ficar bem quente.","O time arrefeceu e marcou três gols seguidos."],"Arrefecer é esfriar ou perder força. Esquentar a sopa ou ganhar ritmo é o contrário."],
+ syn:["esfriar","abrandar","amainar","desacelerar"], ant:["esquentar","acirrar","intensificar"],
+ tip:"No noticiário econômico é comum: “o mercado de trabalho arrefeceu”. Nos carros, o “sistema de arrefecimento” é o que esfria o motor."},
+
+{id:"enaltecer", w:"enaltecer", c:"v", syl:"e-nal-te-^cer",
+ def:"Elogiar muito, destacando as qualidades de alguém ou de algo.",
+ g:"elogiar, exaltar as qualidades",
+ fam:[["enaltecer","v","elogiar, exaltar"],["enaltecimento","sm","o elogio, a exaltação"],["enaltecedor","adj","que enaltece"]],
+ verb:"enaltecer",
+ ex:["No discurso, a diretora *enalteceu* o trabalho da equipe de sistemas.","Não precisa me *enaltecer* tanto, só fiz a minha parte.","Foi uma homenagem *enaltecedora*, todo mundo saiu emocionado."],
+ q:[["Na festa de ontem, o noivo ___ a paciência da noiva.","enalteceu",["enaltecimento","enaltecedor","enaltece"],"“Ontem” indica passado; sujeito “o noivo” (ele): ele enalteceu.","enaltecer"],
+    ["Sempre que posso, eu ___ os professores que me ajudaram.","enalteço",["enalteco","enaltecimento","enaltece"],"Sujeito “eu” no presente: eu enalteço. Verbo em -cer: o “c” vira “ç” antes do “o”.","enaltecer"],
+    ["O texto era um ___ da cultura nordestina.","enaltecimento",["enaltecer","enalteceu","enaltecedor"],"Depois de “um” vem o substantivo: um enaltecimento.","enaltecer"],
+    ["Foi uma fala ___ sobre a carreira do homenageado.","enaltecedora",["enalteceu","enaltecimento","enaltecer"],"Precisamos de um adjetivo que concorde com “fala” (feminino): enaltecedora.","enaltecer"]],
+ u:["O técnico enalteceu a garra dos jogadores depois da vitória.",["Ela enalteceu o chefe com críticas duras na frente de todos.","Vou enaltecer a janela porque está calor."],"Enaltecer é elogiar, exaltar. Críticas duras são o oposto."],
+ syn:["elogiar","exaltar","louvar","engrandecer"], ant:["depreciar","criticar","desmerecer"],
+ tip:"Vem de “alto”: enaltecer é colocar alguém lá no alto."},
+
+{id:"coibir", w:"coibir", c:"v", syl:"co-i-^bir",
+ def:"Impedir ou reprimir algo considerado errado ou prejudicial.",
+ g:"impedir, reprimir",
+ fam:[["coibir","v","impedir, reprimir"],["coibição","sf","a repressão, o impedimento"],["coibido","adj","impedido, reprimido"]],
+ verb:"coibir",
+ ex:["A nova lei quer *coibir* o uso de celular ao volante.","A escola *coíbe* qualquer tipo de bullying.","As multas altas ajudaram a *coibir* as fraudes."],
+ q:[["A fiscalização ___ as vendas ilegais na praia todo fim de semana.","coíbe",["coibe","coibição","coibido"],"Sujeito “a fiscalização” (ela) no presente: ela coíbe. Leva acento porque o “i” é a sílaba forte e forma hiato.","coibir"],
+    ["No ano passado, a empresa ___ o uso de pendrives por segurança.","coibiu",["coíbe","coibição","coibir"],"“No ano passado” indica passado; sujeito “a empresa” (ela): ela coibiu.","coibir"],
+    ["Câmeras ajudam a ___ furtos no estacionamento.","coibir",["coíbem","coibição","coibiu"],"Depois de “ajudam a” vem o infinitivo: ajudam a coibir.","coibir"],
+    ["Os pais ___ as brigas entre os irmãos com uma regra simples: quem brigar fica sem videogame.","coíbem",["coibem","coíbe","coibição"],"Sujeito “os pais” (eles) no presente: eles coíbem, com acento no “í”.","coibir"]],
+ u:["O condomínio criou regras para coibir o barulho depois das 22h.",["Vou coibir meus amigos para o churrasco de sábado.","Ele coibiu a planta com água todos os dias."],"Coibir é impedir ou reprimir algo ruim. Para chamar amigos, use “convidar”; para plantas, “regar”."],
+ syn:["reprimir","impedir","conter","inibir"], ant:["permitir","estimular","incentivar"],
+ tip:"Acento só quando o “i” é a sílaba forte: eu coíbo, ele coíbe, eles coíbem. Nas outras formas não tem: coibimos, coibiu."},
+
+{id:"titubear", w:"titubear", c:"v", syl:"ti-tu-be-^ar",
+ def:"Hesitar, ficar em dúvida na hora de falar ou agir.",
+ g:"hesitar, vacilar",
+ fam:[["titubear","v","hesitar"],["titubeio","sm","a hesitação"],["titubeante","adj","hesitante, inseguro"]],
+ verb:"titubear",
+ ex:["Quando o cliente perguntou o prazo, ele *titubeou* e perdeu a credibilidade.","Ela respondeu sem *titubear*: “Eu aceito a vaga”.","Com a voz *titubeante*, o menino pediu desculpas."],
+ q:[["Na entrevista de ontem, eu ___ na pergunta sobre salário.","titubeei",["titubeio","titubeou","titubeante"],"Sujeito “eu” no passado: eu titubeei. Repare nos dois “e”: titube + ei.","titubear"],
+    ["Quando o assunto é compromisso, ele sempre ___.","titubeia",["titubea","titubeio","titubeante"],"Sujeito “ele”, hábito no presente: ele titubeia. Verbos em -ear ganham um “i” nas formas fortes: titubeio, titubeia, titubeiam.","titubear"],
+    ["Ela assinou o contrato sem ___.","titubear",["titubeou","titubeante","titubeia"],"Depois de “sem” vem o infinitivo: sem titubear.","titubear"],
+    ["Ele deu uma resposta ___ e ninguém acreditou.","titubeante",["titubeou","titubear","titubeio"],"Precisamos de um adjetivo para “resposta”: titubeante (hesitante).","titubear"]],
+ u:["Na hora de escolher, ela titubeou entre as duas propostas.",["O bebê titubeou a mamadeira inteira.","Vou titubear a parede de azul."],"Titubear é hesitar, ficar em dúvida. Não é tomar nem pintar."],
+ syn:["hesitar","vacilar","gaguejar","oscilar"], ant:["decidir","firmar-se"],
+ tip:"Expressão muito comum: “sem titubear” = sem pensar duas vezes. Como “passear”, ganha “i” nas formas fortes: eu titubeio (como eu passeio)."},
+
+{id:"aplacar", w:"aplacar", c:"v", syl:"a-pla-^car",
+ def:"Acalmar, tornar menos intenso (raiva, fome, dor, ansiedade).",
+ g:"acalmar, abrandar",
+ fam:[["aplacar","v","acalmar"],["aplacável","adj","que pode ser acalmado"],["implacável","adj","que não se acalma, sem piedade"]],
+ verb:"aplacar",
+ ex:["Um lanche rápido serviu para *aplacar* a fome até o jantar.","Nada *aplacava* a ansiedade dele antes da prova.","O calor do Rio em fevereiro é *implacável*."],
+ q:[["Eu ___ a raiva do meu irmão pedindo desculpas na hora.","aplaquei",["aplacei","aplacou","implacável"],"Sujeito “eu” no passado: eu aplaquei. O “c” vira “qu” antes do “e”: aplac + ei = aplaquei.","aplacar"],
+    ["O chefe faz uma cobrança ___ por resultados, sem trégua.","implacável",["aplacar","aplacou","aplacável"],"A ideia é de algo que não se acalma, sem trégua: implacável.","aplacar"],
+    ["Ela tomou um chá para ___ a ansiedade antes da apresentação.","aplacar",["aplacou","implacável","aplaquei"],"Depois de “para” vem o infinitivo: para aplacar.","aplacar"],
+    ["Nos dias de verão, só um banho frio ___ o calor.","aplaca",["aplaque","implacável","aplaquei"],"Sujeito “um banho frio” (ele), fato habitual no presente: ele aplaca.","aplacar"]],
+ u:["A notícia de que estava tudo bem aplacou a preocupação da mãe.",["O time aplacou o adversário por 5 a 0.","Vou aplacar a TV na parede."],"Aplacar é acalmar algo intenso. Não significa vencer nem pendurar."],
+ syn:["acalmar","abrandar","amenizar","saciar"], ant:["atiçar","exacerbar","provocar"],
+ tip:"Já conhece “implacável”? É da mesma família: im- (não) + placável = que não se consegue acalmar."},
+
+{id:"malograr", w:"malograr", c:"v", syl:"ma-lo-^grar",
+ def:"Não dar certo, fracassar; ou fazer algo fracassar.",
+ g:"fracassar, não dar certo",
+ fam:[["malograr","v","fracassar"],["malogro","sm","o fracasso"],["malogrado","adj","fracassado, que não deu certo"]],
+ verb:"malograr",
+ ex:["O plano de fazer um piquenique *malogrou* por causa da chuva.","Depois de duas tentativas *malogradas*, ele finalmente passou no concurso.","O *malogro* da negociação pegou todo mundo de surpresa."],
+ q:[["A negociação ___ na última hora e o negócio não saiu.","malogrou",["malogro","malogrado","malograr"],"Ação concluída no passado; sujeito “a negociação” (ela): ela malogrou.","malograr"],
+    ["Foi mais uma tentativa ___ de reatar o namoro.","malograda",["malogrou","malogro","malograr"],"Precisamos de um adjetivo que concorde com “tentativa” (feminino): malograda.","malograr"],
+    ["O ___ do projeto serviu de lição para a equipe.","malogro",["malograr","malogrado","malogrou"],"Depois de “o” vem o substantivo: o malogro (o fracasso).","malograr"],
+    ["Uma falha no planejamento pode ___ todo o esforço do time.","malograr",["malogro","malogrou","malogrado"],"Depois de “pode” vem o infinitivo: pode malograr.","malograr"]],
+ u:["Os planos de viagem malograram por falta de dinheiro.",["Ela malogrou na maratona e ganhou a medalha de ouro.","Vou malograr o almoço, estou morrendo de fome."],"Malograr é fracassar, não dar certo. Ganhar medalha é sucesso."],
+ syn:["fracassar","falhar","gorar","frustrar-se"], ant:["ter êxito","triunfar","lograr"],
+ tip:"É o oposto de “lograr” no sentido de conseguir: “ele logrou aprovação” = conseguiu. Mal + lograr = não conseguir."},
+
+{id:"almejar", w:"almejar", c:"v", syl:"al-me-^jar",
+ def:"Desejar muito algo; ter como objetivo.",
+ g:"desejar muito, ter como meta",
+ fam:[["almejar","v","desejar intensamente"],["almejado","adj","muito desejado, sonhado"]],
+ verb:"almejar",
+ ex:["Ela *almeja* uma vaga de gerente até o fim do ano.","Finalmente conquistei o *almejado* apartamento próprio.","O que você *almeja* para os próximos cinco anos?"],
+ q:[["Desde criança, eu ___ morar perto da praia.","almejo",["almejado","almeja","almejando"],"Sujeito “eu” no presente (um desejo que continua até hoje): eu almejo.","almejar"],
+    ["Depois de anos de estudo, ele conseguiu o cargo tão ___.","almejado",["almejar","almejou","almeja"],"Depois de “tão” precisamos de um adjetivo para “cargo”: almejado.","almejar"],
+    ["No início do ano, os dois ___ uma viagem ao Japão, mas depois mudaram de ideia.","almejavam",["almejado","almeja","almejar"],"Um desejo que durava no passado e depois mudou: pretérito imperfeito, eles almejavam.","almejar"],
+    ["Não basta ___ o sucesso, é preciso trabalhar por ele.","almejar",["almejado","almeja","almejamos"],"Depois de “não basta” vem o infinitivo: não basta almejar.","almejar"]],
+ u:["Ela almeja ser promovida antes dos trinta anos.",["Vou almejar o almoço na geladeira.","O cachorro almejou o carteiro e saiu correndo."],"Almejar é desejar muito, ter como objetivo. Não é guardar nem latir para alguém."],
+ syn:["desejar","aspirar","ambicionar","sonhar com"], ant:["desprezar","rejeitar"],
+ tip:"Almejar pede objeto direto: almejar algo (sem “por”). É mais formal que “querer muito”."},
+
+{id:"vislumbrar", w:"vislumbrar", c:"v", syl:"vis-lum-^brar",
+ def:"Ver algo de forma rápida ou pouco nítida; começar a perceber ou imaginar algo que pode acontecer.",
+ g:"ver de relance; começar a perceber algo",
+ fam:[["vislumbrar","v","entrever, perceber"],["vislumbre","sm","um sinal, uma ideia vaga"]],
+ verb:"vislumbrar",
+ ex:["Pela janela do avião, *vislumbramos* as luzes da cidade.","Depois de meses de crise, a empresa já *vislumbra* uma melhora.","Não há nem um *vislumbre* de solução para o trânsito da cidade."],
+ q:[["Com a neblina, nós só ___ o contorno das montanhas.","vislumbramos",["vislumbre","vislumbrar","vislumbrado"],"Sujeito “nós”: nós vislumbramos. No português do Brasil essa forma serve para o presente e para o passado.","vislumbrar"],
+    ["Pela primeira vez, ela ___ a possibilidade de morar fora do país.","vislumbrou",["vislumbre","vislumbrar","vislumbrando"],"“Pela primeira vez” marca um momento no passado; sujeito “ela”: ela vislumbrou.","vislumbrar"],
+    ["Ele não demonstrou nem um ___ de arrependimento.","vislumbre",["vislumbrar","vislumbrou","vislumbrado"],"Depois de “um” vem o substantivo: um vislumbre (um sinal mínimo).","vislumbrar"],
+    ["Com o novo sistema, conseguimos ___ uma rotina com menos trabalho manual.","vislumbrar",["vislumbre","vislumbrou","vislumbramos"],"Depois de “conseguimos” vem o infinitivo: conseguimos vislumbrar.","vislumbrar"]],
+ u:["Com a promoção, ele já vislumbra a compra da casa própria.",["Vou vislumbrar o chão da cozinha com um pano.","Ela vislumbrou de frio a noite inteira."],"Vislumbrar é enxergar de relance ou começar a perceber uma possibilidade. Não é limpar nem tremer."],
+ syn:["entrever","avistar","perceber","antever"], ant:["ignorar","não enxergar"],
+ tip:"Pense em “ver um brilho distante”: vislumbrar uma luz, vislumbrar uma oportunidade."},
+
+{id:"auferir", w:"auferir", c:"v", syl:"au-fe-^rir",
+ def:"Obter ou receber, principalmente lucro, renda ou vantagem.",
+ g:"obter, receber (lucro, renda, vantagem)",
+ fam:[["auferir","v","obter, ganhar"],["auferido","adj","obtido, recebido"]],
+ verb:"auferir",
+ ex:["O fundo *auferiu* um bom rendimento no último semestre.","Quem *aufere* renda de aluguel precisa declarar no imposto de renda.","Os ganhos *auferidos* com a venda das ações são tributados."],
+ q:[["No ano passado, a empresa ___ um lucro recorde.","auferiu",["aufere","auferido","auferir"],"“No ano passado” indica passado; sujeito “a empresa” (ela): ela auferiu.","auferir"],
+    ["Eu ___ uma renda extra dando aulas de inglês aos sábados.","aufiro",["aufero","aufere","auferido"],"Sujeito “eu” no presente: eu aufiro. É irregular: o “e” vira “i” só nessa pessoa (como ferir → eu firo).","auferir"],
+    ["Os rendimentos ___ na poupança são isentos de imposto.","auferidos",["auferiram","aufiro","auferir"],"Precisamos do particípio como adjetivo, concordando com “rendimentos” (masculino plural): auferidos.","auferir"],
+    ["O objetivo do investimento é ___ ganhos no longo prazo.","auferir",["aufere","auferidos","aufiro"],"Depois de “o objetivo é” vem o infinitivo: é auferir.","auferir"]],
+ u:["Os investidores auferiram lucro com a alta da bolsa.",["Vou auferir a febre do bebê com o termômetro.","Ele auferiu a porta e saiu sem falar nada."],"Auferir é obter ou receber (renda, lucro). Para medir temperatura, o verbo é “aferir”."],
+ syn:["obter","ganhar","lucrar","receber"], ant:["perder","ter prejuízo"],
+ tip:"Muito usada em finanças e no imposto de renda: “rendimentos auferidos”. Não confunda com AFERIR (medir, conferir): aferir a pressão, aferir a balança."},
+
+{id:"indeferir", w:"indeferir", c:"v", syl:"in-de-fe-^rir",
+ def:"Negar oficialmente um pedido ou um requerimento.",
+ g:"negar oficialmente um pedido",
+ fam:[["indeferir","v","negar um pedido"],["indeferimento","sm","a recusa oficial"],["indeferido","adj","negado"],["deferir","v","aprovar um pedido (o contrário)"]],
+ verb:"indeferir",
+ ex:["O banco *indeferiu* o meu pedido de aumento de limite.","Meu visto foi *indeferido* e vou ter que tentar de novo.","O *indeferimento* veio sem nenhuma justificativa."],
+ q:[["O juiz ___ o recurso ontem à tarde.","indeferiu",["indefere","indeferimento","indeferido"],"“Ontem” indica passado; sujeito “o juiz” (ele): ele indeferiu.","indeferir"],
+    ["Infelizmente, seu cadastro foi ___ por falta de documentos.","indeferido",["indeferiu","indeferimento","indeferir"],"Depois de “foi” vem o particípio: foi indeferido.","indeferir"],
+    ["Como chefe do setor, eu ___ qualquer pedido fora do prazo.","indefiro",["indefero","indefere","indeferimento"],"Sujeito “eu” no presente: eu indefiro. É irregular como “ferir”: o “e” vira “i” nessa pessoa.","indeferir"],
+    ["Recebemos o ___ da licença e vamos recorrer.","indeferimento",["indeferir","indeferido","indefiro"],"Depois de “o” vem o substantivo: o indeferimento.","indeferir"]],
+ u:["A prefeitura indeferiu o pedido de alvará do restaurante.",["O garçom indeferiu nossa mesa com uma toalha nova.","Vou indeferir você na festa, pode deixar."],"Indeferir é negar oficialmente um pedido. Tem sempre relação com requerimentos, processos e aprovações."],
+ syn:["negar","recusar","rejeitar"], ant:["deferir","aprovar","conceder"],
+ tip:"Típica de burocracia: bancos, cartórios, órgãos públicos. O contrário é DEFERIR: “pedido deferido” = aprovado."}
+);
+// Banco de palavras (parte 3)
+BANK.push(
+{id:"usurpar", w:"usurpar", c:"v", syl:"u-sur-^par",
+ def:"Tomar para si, sem ter direito, algo que pertence a outra pessoa (um cargo, um mérito, um poder).",
+ g:"tomar para si sem ter direito",
+ fam:[["usurpar","v","apoderar-se sem direito"],["usurpação","sf","a tomada indevida"],["usurpador","sm","quem usurpa"]],
+ verb:"usurpar",
+ ex:["Ele *usurpou* a ideia da estagiária e apresentou como se fosse dele.","Na história, muitos reis foram acusados de *usurpar* o trono.","Isso é *usurpação* de função: ele não tem autoridade para aprovar isso."],
+ q:[["Na reunião de ontem, meu colega ___ o crédito pelo meu relatório.","usurpou",["usurpação","usurpador","usurpa"],"Passado (ontem) e sujeito “meu colega” (ele): ele usurpou.","usurpar"],
+    ["O ___ foi expulso do palácio pelo povo.","usurpador",["usurpação","usurpar","usurpou"],"Depois de “o” precisamos do substantivo que indica a pessoa: o usurpador.","usurpar"],
+    ["Aprovar gastos sem autorização é ___ de função.","usurpação",["usurpador","usurpar","usurpado"],"Aqui precisamos do substantivo que nomeia o ato: usurpação de função.","usurpar"],
+    ["Não deixe ninguém ___ o seu espaço nas reuniões.","usurpar",["usurpação","usurpou","usurpador"],"Depois de “deixe ninguém” vem o infinitivo: deixe alguém usurpar.","usurpar"]],
+ u:["O vice tentou usurpar o poder enquanto o presidente viajava.",["Vou usurpar um pedaço de bolo para você.","Ela usurpou o chão da sala com a vassoura."],"Usurpar é tomar para si algo sem direito, como poder, cargo ou mérito."],
+ syn:["apoderar-se","apropriar-se","tomar"], ant:["devolver","restituir"],
+ tip:"Tem sempre um tom de acusação: usurpar é tomar de forma ilegítima. Muito usado para cargos, poder e mérito alheio."},
+
+{id:"dissipar", w:"dissipar", c:"v", syl:"dis-si-^par",
+ def:"Fazer desaparecer aos poucos (névoa, dúvida, medo); ou gastar algo sem controle.",
+ g:"fazer desaparecer, desfazer",
+ fam:[["dissipar","v","desfazer; desperdiçar"],["dissipação","sf","o desaparecimento; o desperdício"],["dissipado","adj","desfeito, desaparecido"]],
+ verb:"dissipar",
+ ex:["A conversa com o médico *dissipou* todas as minhas dúvidas.","A neblina se *dissipou* e o voo pôde decolar.","Ele *dissipou* a herança em poucos anos."],
+ q:[["Quando a verdade veio à tona, as suspeitas se ___.","dissiparam",["dissipação","dissipado","dissipar"],"Ação concluída; sujeito “as suspeitas” (elas): elas se dissiparam.","dissipar"],
+    ["Uma boa explicação ___ o medo das crianças antes da vacina.","dissipa",["dissipação","dissipado","dissipam"],"Sujeito “uma boa explicação” (ela), fato geral no presente: ela dissipa.","dissipar"],
+    ["O sol da manhã ajudou a ___ a névoa sobre o lago.","dissipar",["dissipação","dissipou","dissipado"],"Depois de “ajudou a” vem o infinitivo: ajudou a dissipar.","dissipar"],
+    ["A ___ de energia em forma de calor é normal nos motores.","dissipação",["dissipar","dissipado","dissipa"],"Depois de “a” vem o substantivo: a dissipação.","dissipar"]],
+ u:["O pedido de desculpas dissipou o clima ruim na família.",["Vou dissipar a comida no prato de todo mundo.","Ele dissipou a camisa para a festa."],"Dissipar é fazer algo sumir aos poucos (dúvida, névoa, tensão) ou desperdiçar. Não é servir nem passar roupa."],
+ syn:["desfazer","dispersar","eliminar","desperdiçar"], ant:["concentrar","acumular","reforçar"],
+ tip:"Dois sentidos: desfazer (dissipar dúvidas, dissipar a névoa) e desperdiçar (dissipar uma fortuna)."},
+
+{id:"inocuo", w:"inócuo", c:"adj", syl:"i-^nó-cu-o",
+ def:"Que não faz mal; ou que não tem efeito nenhum.",
+ g:"que não faz efeito ou não faz mal",
+ fam:[["inócuo","adj","inofensivo; sem efeito"],["inocuidade","sf","a falta de efeito ou de perigo"]],
+ ex:["Essa medida é *inócua*: não muda nada na prática.","O médico disse que o remédio é *inócuo* para crianças.","A *inocuidade* das multas fez as pessoas continuarem estacionando ali."],
+ q:[["As reclamações foram ___: nada mudou.","inócuas",["inócuos","inócua","inocuidade"],"O adjetivo concorda com “as reclamações” (feminino plural): inócuas.","inócuo"],
+    ["Esse corante é ___ à saúde, pode ficar tranquilo.","inócuo",["inócua","inocuidade","inócuos"],"Concorda com “esse corante” (masculino singular): inócuo.","inócuo"],
+    ["Os testes comprovaram a ___ do produto.","inocuidade",["inócuo","inócua","inocência"],"Depois de “a” vem o substantivo: a inocuidade (qualidade de não fazer mal). “Inocência” é outra palavra: falta de culpa.","inócuo"],
+    ["Os conselhos da tia foram ___: meu primo fez tudo igual.","inócuos",["inócuas","inócuo","inocuidade"],"Concorda com “os conselhos” (masculino plural): inócuos.","inócuo"]],
+ u:["Reclamar só no grupo da família é inócuo; você precisa falar com o síndico.",["Ele ficou inócuo depois de correr a maratona.","O bolo ficou inócuo de tão doce."],"Inócuo é o que não faz efeito ou não faz mal. Não descreve cansaço nem sabor."],
+ syn:["inofensivo","ineficaz","inútil"], ant:["nocivo","eficaz","prejudicial"],
+ tip:"Vem de in- (não) + nocivo (que faz mal). Dependendo do contexto, significa “inofensivo” ou “sem efeito”."},
+
+{id:"efemero", w:"efêmero", c:"adj", syl:"e-^fê-me-ro",
+ def:"Que dura pouco tempo; passageiro.",
+ g:"que dura pouco, passageiro",
+ fam:[["efêmero","adj","passageiro"],["efemeridade","sf","a qualidade do que é passageiro"]],
+ ex:["O sucesso daquela dancinha foi *efêmero*: em um mês ninguém lembrava mais.","Os stories são *efêmeros*, somem depois de 24 horas.","A *efemeridade* das modas faz a gente gastar à toa."],
+ q:[["A alegria de ganhar na rifa foi ___: no dia seguinte perdi a carteira.","efêmera",["efêmero","efêmeras","efemeridade"],"Concorda com “a alegria” (feminino singular): efêmera.","efêmero"],
+    ["Os aplausos são ___, mas a reputação fica.","efêmeros",["efêmero","efêmeras","efemeridade"],"Concorda com “os aplausos” (masculino plural): efêmeros.","efêmero"],
+    ["A ___ da vida é um tema comum na poesia.","efemeridade",["efêmera","efêmero","efêmeras"],"Depois de “a” vem o substantivo: a efemeridade.","efêmero"],
+    ["Não fique triste com esse mau humor ___, amanhã passa.","efêmero",["efêmera","efemeridade","efêmeras"],"Concorda com “mau humor” (masculino singular): efêmero.","efêmero"]],
+ u:["O frio de ontem foi efêmero: hoje já voltou o calor.",["O prédio é efêmero, tem 50 andares.","Ela é muito efêmera, sempre ajuda todo mundo."],"Efêmero é passageiro, que dura pouco. Não descreve altura nem gentileza."],
+ syn:["passageiro","breve","fugaz","transitório"], ant:["duradouro","perene","permanente"],
+ tip:"Vem do grego e quer dizer “de um dia só”. Bom par para aprender junto com PERENE, que é o contrário."},
+
+{id:"perene", w:"perene", c:"adj", syl:"pe-^re-ne",
+ def:"Que dura muito ou para sempre; que não se interrompe.",
+ g:"duradouro, contínuo",
+ fam:[["perene","adj","duradouro"],["perenidade","sf","a qualidade do que dura"],["perenemente","adv","de forma duradoura, contínua"]],
+ ex:["Esse rio é *perene*: não seca nem na estiagem.","Queremos uma solução *perene*, não um remendo.","A empresa busca a *perenidade* do negócio para as próximas gerações."],
+ q:[["Precisamos de soluções ___, não de improvisos.","perenes",["perene","perenidade","perenemente"],"Concorda com “soluções” (plural): perenes. Perene não muda no feminino, só no plural.","perene"],
+    ["Uma amizade ___ resiste a qualquer distância.","perene",["perenes","perenidade","perenemente"],"Concorda com “uma amizade” (singular): perene.","perene"],
+    ["O fundador se preocupava com a ___ da empresa familiar.","perenidade",["perene","perenes","perenemente"],"Depois de “a” vem o substantivo: a perenidade.","perene"],
+    ["O mercado muda ___, então precisamos estudar sempre.","perenemente",["perene","perenidade","perenes"],"A palavra modifica o verbo “muda”, então precisamos de um advérbio: perenemente (de forma contínua).","perene"]],
+ u:["O desafio é transformar o sucesso de um ano em algo perene.",["O sorvete é perene: derreteu em dois minutos.","Ele ficou perene de raiva."],"Perene é o que dura muito. Um sorvete que derrete rápido é efêmero, não perene."],
+ syn:["duradouro","permanente","contínuo","eterno"], ant:["efêmero","passageiro","temporário"],
+ tip:"Serve para qualquer gênero: um rio perene, uma planta perene. Em negócios é comum falar da “perenidade da empresa”."},
+
+{id:"prolixo", w:"prolixo", c:"adj", syl:"pro-^li-xo",
+ def:"Que usa palavras demais para dizer algo; longo e cansativo.",
+ g:"que fala ou escreve demais, sem ir ao ponto",
+ fam:[["prolixo","adj","longo demais, enrolado"],["prolixidade","sf","o excesso de palavras"],["prolixamente","adv","de forma prolixa"]],
+ ex:["O e-mail ficou muito *prolixo*: corta pela metade.","Ele é *prolixo*: para dizer “sim”, fala dez minutos.","A *prolixidade* do contrato escondia uma cláusula importante."],
+ q:[["A resposta dela foi tão ___ que esqueci a pergunta.","prolixa",["prolixo","prolixidade","prolixas"],"Concorda com “a resposta” (feminino singular): prolixa.","prolixo"],
+    ["Evite relatórios ___; o cliente quer os números principais.","prolixos",["prolixo","prolixas","prolixidade"],"Concorda com “relatórios” (masculino plural): prolixos.","prolixo"],
+    ["A ___ do palestrante fez metade da plateia dormir.","prolixidade",["prolixo","prolixa","prolixamente"],"Depois de “a” vem o substantivo: a prolixidade.","prolixo"],
+    ["Meu avô explica tudo ___, mas as histórias são ótimas.","prolixamente",["prolixo","prolixidade","prolixa"],"A palavra modifica o verbo “explica”: precisamos do advérbio prolixamente.","prolixo"]],
+ u:["Seja direto na reunião; ninguém gosta de apresentações prolixas.",["O relatório ficou prolixo: só tinha duas linhas.","Ele é tão prolixo que nunca fala nada."],"Prolixo é quem usa palavras demais. Duas linhas ou não falar nada é o oposto."],
+ syn:["verborrágico","extenso","enrolado","cansativo"], ant:["conciso","sucinto","objetivo"],
+ tip:"O “x” tem som de “ks”: pro-LI-kso. Para elogiar um texto curto e claro, use “conciso” ou “sucinto”."},
+
+{id:"exiguo", w:"exíguo", c:"adj", syl:"e-^xí-guo",
+ def:"Muito pequeno ou insuficiente (espaço, tempo, dinheiro).",
+ g:"muito pequeno, insuficiente",
+ fam:[["exíguo","adj","pequeno, escasso"],["exiguidade","sf","a escassez, a pouca quantidade"]],
+ ex:["O prazo é *exíguo*: temos só dois dias para entregar.","Moramos num apartamento *exíguo*, mas bem localizado.","Por causa da *exiguidade* do orçamento, cortamos a festa de fim de ano."],
+ q:[["Com um orçamento tão ___, não dá para contratar ninguém.","exíguo",["exígua","exiguidade","exíguos"],"Concorda com “orçamento” (masculino singular): exíguo.","exíguo"],
+    ["As vagas no estacionamento são ___.","exíguas",["exíguos","exígua","exiguidade"],"Concorda com “as vagas” (feminino plural): exíguas.","exíguo"],
+    ["A ___ do tempo nos obrigou a priorizar as tarefas.","exiguidade",["exíguo","exígua","exigência"],"Depois de “a” vem o substantivo: a exiguidade. “Exigência” é outra palavra (vem de exigir).","exíguo"],
+    ["Ela tinha uma margem ___ para errar na prova final.","exígua",["exíguo","exiguidade","exíguas"],"Concorda com “margem” (feminino singular): exígua.","exíguo"]],
+ u:["Por causa do prazo exíguo, a equipe trabalhou no fim de semana.",["O estádio é exíguo: cabem 80 mil pessoas.","Meu chefe é muito exíguo, cobra tudo o tempo todo."],"Exíguo é pequeno, insuficiente. Não confunda com “exigente” (que cobra muito)."],
+ syn:["escasso","reduzido","apertado","minúsculo"], ant:["amplo","farto","abundante"],
+ tip:"Parece com “exigente”, mas não tem relação: exíguo = pouco, pequeno. Pronuncia-se e-ZÍ-guo."},
+
+{id:"premente", w:"premente", c:"adj", syl:"pre-^men-te",
+ def:"Urgente, que precisa ser resolvido logo.",
+ g:"urgente, que não pode esperar",
+ fam:[["premente","adj","urgente"],["premência","sf","a urgência"]],
+ ex:["A troca do telhado é *premente*: vai chover na semana que vem.","Temos uma necessidade *premente* de contratar mais uma pessoa.","Dada a *premência* do caso, o médico operou no mesmo dia."],
+ q:[["Há questões ___ na pauta de hoje.","prementes",["premente","premência","premiadas"],"Concorda com “questões” (plural): prementes.","premente"],
+    ["A ___ da situação exigia uma resposta imediata.","premência",["premente","prementes","premiação"],"Depois de “a” vem o substantivo: a premência (a urgência).","premente"],
+    ["Consertar o freio do carro é algo ___.","premente",["prementes","premência","premiado"],"Concorda com “algo” (singular): premente.","premente"],
+    ["O cliente pediu o extrato com ___, então priorize isso.","premência",["premente","prementes","prêmio"],"Depois de “com” precisamos de um substantivo: com premência (com urgência).","premente"]],
+ u:["Resolver a conciliação do mês é a tarefa mais premente da equipe.",["Ele ganhou um prêmio premente na loteria.","A viagem foi premente: durou três semanas bem tranquilas."],"Premente é urgente. Não tem relação com prêmio nem com algo longo e tranquilo."],
+ syn:["urgente","inadiável","imperioso"], ant:["adiável","secundário"],
+ tip:"Vem de “premer” (apertar): é aquilo que aperta, que pressiona. Não tem relação com “prêmio”."},
+
+{id:"iminente", w:"iminente", c:"adj", syl:"i-mi-^nen-te",
+ def:"Que está prestes a acontecer, muito próximo.",
+ g:"prestes a acontecer",
+ fam:[["iminente","adj","prestes a acontecer"],["iminência","sf","a proximidade de algo que vai acontecer"]],
+ ex:["O céu escureceu e a chuva parecia *iminente*.","Com a demissão *iminente*, ele começou a procurar outro emprego.","Na *iminência* da viagem, ela fez uma lista de tudo o que precisava levar."],
+ q:[["O perigo de enchente é ___ se continuar chovendo assim.","iminente",["eminente","iminência","iminentes"],"A ideia é de algo prestes a acontecer: iminente (com “i”). “Eminente” significa ilustre, importante.","iminente"],
+    ["Os médicos falaram de riscos ___ para o paciente.","iminentes",["iminente","eminentes","iminência"],"Concorda com “riscos” (plural) e tem a ideia de algo prestes a acontecer: iminentes.","iminente"],
+    ["Na ___ do lançamento, a equipe revisou tudo de novo.","iminência",["iminente","eminência","iminentes"],"Depois de “na” (em + a) vem o substantivo: na iminência (quando algo está prestes a acontecer).","iminente"],
+    ["O congresso contou com a presença de um ___ cientista brasileiro.","eminente",["iminente","iminência","eminência"],"Pegadinha! Aqui a ideia é de alguém ilustre, importante: eminente, com “e”. Iminente é o que está prestes a acontecer.","iminente"]],
+ u:["Com a nuvem escura no horizonte, a tempestade era iminente.",["O professor é muito iminente, todos o respeitam.","A festa foi iminente, durou a noite toda."],"Iminente é o que está prestes a acontecer. Para uma pessoa importante, o correto é EMINENTE, com “e”."],
+ syn:["próximo","imediato","prestes a acontecer"], ant:["remoto","distante"],
+ tip:"Confusão clássica: Iminente = prestes a acontecer (I de Imediato). Eminente = ilustre, de destaque (E de Elevado)."},
+
+{id:"perspicaz", w:"perspicaz", c:"adj", syl:"pers-pi-^caz",
+ def:"Que percebe as coisas com rapidez e inteligência, inclusive detalhes que os outros não notam.",
+ g:"que percebe rápido e com inteligência",
+ fam:[["perspicaz","adj","sagaz, observador"],["perspicácia","sf","a capacidade de perceber com rapidez"],["perspicazmente","adv","de forma perspicaz"]],
+ ex:["A analista foi *perspicaz* e encontrou o erro na planilha antes de todo mundo.","Com muita *perspicácia*, ele percebeu que o cliente estava insatisfeito.","Crianças são muito *perspicazes*, percebem quando a gente está mentindo."],
+ q:[["Os investigadores, muito ___, notaram que a assinatura era falsa.","perspicazes",["perspicaz","perspicácia","perspicazmente"],"Concorda com “os investigadores” (plural): perspicazes.","perspicaz"],
+    ["Ela resolveu o problema com uma ___ impressionante.","perspicácia",["perspicaz","perspicazes","perspicazmente"],"Depois de “uma” vem o substantivo: a perspicácia. Repare no acento: pers-pi-CÁ-cia.","perspicaz"],
+    ["Que comentário ___! Eu nunca tinha pensado nisso.","perspicaz",["perspicazes","perspicácia","perspicazmente"],"Concorda com “comentário” (singular): perspicaz.","perspicaz"],
+    ["O gerente analisou ___ os números e achou a inconsistência.","perspicazmente",["perspicaz","perspicácia","perspicazes"],"A palavra modifica o verbo “analisou”: advérbio perspicazmente.","perspicaz"]],
+ u:["Foi perspicaz da sua parte desconfiar daquele e-mail de cobrança.",["O café está muito perspicaz, pode pôr açúcar.","Ele é perspicaz: nunca percebe nada."],"Perspicaz descreve quem percebe rápido e com inteligência. Não descreve sabor, e “nunca percebe nada” é o contrário."],
+ syn:["sagaz","astuto","arguto","observador"], ant:["ingênuo","desatento"],
+ tip:"Plural: perspicazes. O substantivo muda de som: perspicaz → perspicácia."},
+
+{id:"leniente", w:"leniente", c:"adj", syl:"le-ni-^en-te",
+ def:"Que é tolerante demais, que não pune ou não cobra como deveria.",
+ g:"tolerante demais, que não pune",
+ fam:[["leniente","adj","tolerante demais"],["leniência","sf","a tolerância excessiva"]],
+ ex:["Os pais foram *lenientes* demais e agora o filho não respeita ninguém.","O juiz foi acusado de *leniência* com os corruptos.","Não seja *leniente* com prazos, senão todo mundo vai atrasar."],
+ q:[["A fiscalização foi ___ com a fábrica que poluía o rio.","leniente",["lenientes","leniência","lentamente"],"Concorda com “a fiscalização” (singular): leniente. Serve para masculino e feminino.","leniente"],
+    ["Professores ___ acabam perdendo o controle da turma.","lenientes",["leniente","leniência","lentidão"],"Concorda com “professores” (plural): lenientes.","leniente"],
+    ["A ___ com pequenos atrasos virou um problema de disciplina.","leniência",["leniente","lenientes","lentidão"],"Depois de “a” vem o substantivo: a leniência (tolerância excessiva). “Lentidão” é outra coisa: demora.","leniente"],
+    ["A empresa assinou um acordo de ___ com o Ministério Público.","leniência",["leniente","lenientes","lentidão"],"“Acordo de leniência” é uma expressão fixa: a empresa colabora com a investigação em troca de punições menores.","leniente"]],
+ u:["A torcida reclamou que o árbitro foi leniente com as faltas do time rival.",["Ele é leniente: corre 10 km todos os dias.","A sopa está leniente, espera esfriar."],"Leniente é quem é tolerante demais, quem não pune. Não tem relação com esporte nem temperatura."],
+ syn:["tolerante","indulgente","permissivo","complacente"], ant:["rigoroso","severo","rígido"],
+ tip:"Ficou famosa no Brasil com os “acordos de leniência” nas investigações de corrupção."}
+);
+// Banco de palavras (parte 4)
+BANK.push(
+{id:"parcimonia", w:"parcimônia", c:"sf", syl:"par-ci-^mô-nia",
+ def:"Moderação; cuidado para não usar ou gastar mais do que o necessário.",
+ g:"moderação, uso cuidadoso",
+ fam:[["parcimônia","sf","moderação"],["parcimonioso","adj","moderado, econômico"],["parcimoniosamente","adv","com moderação"]],
+ ex:["Use o cartão de crédito com *parcimônia*.","Ela é *parcimoniosa* nos elogios, então quando elogia é porque foi bom mesmo.","O sal deve ser usado *parcimoniosamente* nessa receita."],
+ q:[["Em época de crise, é bom gastar com ___.","parcimônia",["parcimonioso","parcimoniosa","parcimoniosamente"],"Depois de “com” precisamos de um substantivo: com parcimônia.","parcimônia"],
+    ["Meu pai é muito ___ com dinheiro, nunca faz compras por impulso.","parcimonioso",["parcimônia","parcimoniosa","parcimoniosamente"],"Concorda com “meu pai” (masculino): parcimonioso.","parcimônia"],
+    ["Distribua os recursos ___, porque o orçamento é curto.","parcimoniosamente",["parcimonioso","parcimônia","parcimoniosa"],"A palavra modifica o verbo “distribua”: advérbio parcimoniosamente.","parcimônia"],
+    ["A diretora é ___ nas palavras, mas sempre muito precisa.","parcimoniosa",["parcimonioso","parcimônia","parcimoniosas"],"Concorda com “a diretora” (feminino singular): parcimoniosa.","parcimônia"]],
+ u:["Use o ar-condicionado com parcimônia para a conta de luz não disparar.",["Ele comeu a pizza inteira com parcimônia em cinco minutos.","Parcimônia é o nome do novo shopping da cidade."],"Parcimônia é moderação. Comer uma pizza inteira em cinco minutos é o oposto."],
+ syn:["moderação","comedimento","economia","prudência"], ant:["excesso","exagero","esbanjamento"],
+ tip:"A expressão mais comum é “com parcimônia” = com moderação."},
+
+{id:"idoneo", w:"idôneo", c:"adj", syl:"i-^dô-neo",
+ def:"Que é honesto e confiável; ou que tem as qualidades certas para uma função.",
+ g:"honesto, confiável; adequado",
+ fam:[["idôneo","adj","honesto, confiável"],["idoneidade","sf","a honestidade, a confiabilidade"],["inidôneo","adj","não confiável"]],
+ ex:["Só contrate uma empresa *idônea* para cuidar das suas finanças.","O banco analisa a *idoneidade* do cliente antes de liberar o crédito.","A empresa foi declarada *inidônea* e não pode mais participar de licitações."],
+ q:[["Precisamos de um fornecedor ___, com boas referências.","idôneo",["idônea","idoneidade","idôneos"],"Concorda com “fornecedor” (masculino singular): idôneo.","idôneo"],
+    ["O contador exigiu documentos que comprovassem a ___ da empresa.","idoneidade",["idôneo","idônea","inidôneo"],"Depois de “a” vem o substantivo: a idoneidade.","idôneo"],
+    ["As testemunhas eram ___, então o juiz aceitou os depoimentos.","idôneas",["idôneos","idônea","idoneidade"],"Concorda com “as testemunhas” (feminino plural): idôneas.","idôneo"],
+    ["Por fraudar contratos, a construtora foi considerada ___.","inidônea",["idônea","idoneidade","inidôneo"],"A ideia é “não confiável” e concorda com “a construtora” (feminino): inidônea.","idôneo"]],
+ u:["Ele é uma pessoa idônea: nunca teve problema com a justiça.",["Esse sofá é idôneo, muito confortável.","Ela é idônea: mente o tempo todo."],"Idôneo é honesto, confiável ou adequado para uma função. Quem mente o tempo todo é o contrário."],
+ syn:["honesto","íntegro","confiável","apto"], ant:["inidôneo","desonesto","inapto"],
+ tip:"Muito comum em contextos formais: bancos, contratos, licitações, compliance."},
+
+{id:"veemente", w:"veemente", c:"adj", syl:"ve-e-^men-te",
+ def:"Feito com muita força, intensidade e convicção.",
+ g:"intenso, enérgico, cheio de convicção",
+ fam:[["veemente","adj","intenso, enérgico"],["veemência","sf","a intensidade, a energia"],["veementemente","adv","com força, com convicção"]],
+ ex:["Ela negou *veementemente* que tivesse contado o segredo.","O sindicato fez um protesto *veemente* contra as demissões.","Ele falou com tanta *veemência* que convenceu todo mundo."],
+ q:[["O deputado ___ negou as acusações.","veementemente",["veemente","veemência","veementes"],"A palavra modifica o verbo “negou”: advérbio veementemente.","veemente"],
+    ["Recebemos críticas ___ dos clientes sobre o novo aplicativo.","veementes",["veemente","veemência","veementemente"],"Concorda com “críticas” (plural): veementes.","veemente"],
+    ["A ___ do discurso surpreendeu até os aliados.","veemência",["veemente","veementemente","veementes"],"Depois de “a” vem o substantivo: a veemência.","veemente"],
+    ["O técnico fez um apelo ___ para a torcida não brigar.","veemente",["veementes","veemência","veementemente"],"Concorda com “um apelo” (singular): veemente.","veemente"]],
+ u:["O pai reagiu de forma veemente quando soube que o filho tinha sido enganado.",["O sussurro dela foi veemente, quase ninguém ouviu.","O suco está veemente, muito gelado."],"Veemente é intenso, enérgico. Um sussurro que quase ninguém ouve é o oposto."],
+ syn:["enfático","enérgico","intenso","contundente"], ant:["brando","fraco","tímido"],
+ tip:"Atenção à grafia com dois “e”: ve-e-men-te. O advérbio “veementemente” é o mais usado: “nego veementemente”."},
+
+{id:"astucia", w:"astúcia", c:"sf", syl:"as-^tú-cia",
+ def:"Esperteza para conseguir o que se quer, às vezes usando truques.",
+ g:"esperteza, habilidade de driblar ou enganar",
+ fam:[["astúcia","sf","esperteza"],["astuto","adj","esperto, sagaz"],["astuciosamente","adv","com astúcia"]],
+ ex:["Com *astúcia*, ela negociou um desconto que ninguém tinha conseguido.","A raposa é o símbolo do animal *astuto*.","O jogador driblou o goleiro *astuciosamente*."],
+ q:[["O vendedor foi ___ e convenceu o cliente a levar o pacote mais caro.","astuto",["astúcia","astuta","astuciosamente"],"Concorda com “o vendedor” (masculino): astuto.","astúcia"],
+    ["Ela usou toda a sua ___ para sair daquela situação.","astúcia",["astuta","astuto","astuciosamente"],"Depois de “sua” vem o substantivo: a astúcia.","astúcia"],
+    ["A advogada, muito ___, encontrou uma brecha no contrato.","astuta",["astuto","astúcia","astutos"],"Concorda com “a advogada” (feminino): astuta.","astúcia"],
+    ["Os golpistas agiram ___, sem deixar rastros.","astuciosamente",["astúcia","astuto","astuta"],"A palavra modifica o verbo “agiram”: advérbio astuciosamente.","astúcia"]],
+ u:["Com astúcia, o time aproveitou a distração do adversário e marcou.",["Ela tem tanta astúcia que tropeçou três vezes na escada.","Comprei uma astúcia nova para a cozinha."],"Astúcia é esperteza. Não tem relação com tropeços nem com objetos."],
+ syn:["esperteza","sagacidade","manha","malícia"], ant:["ingenuidade","inocência"],
+ tip:"Pode ter tom positivo (inteligência prática) ou negativo (malícia), dependendo do contexto."},
+
+{id:"escrupulo", w:"escrúpulo", c:"sm", syl:"es-^crú-pu-lo",
+ def:"Cuidado moral que impede alguém de fazer algo errado; peso na consciência.",
+ g:"limite moral, peso na consciência",
+ fam:[["escrúpulo","sm","limite moral"],["escrupuloso","adj","extremamente correto e cuidadoso"],["inescrupuloso","adj","sem limites morais"],["escrupulosamente","adv","com extremo cuidado"]],
+ ex:["Ele não tem *escrúpulos*: faria qualquer coisa por dinheiro.","Cuidado com vendedores *inescrupulosos* que ligam oferecendo empréstimos.","A auditora conferiu os números *escrupulosamente*."],
+ q:[["Um político ___ promete tudo só para ganhar votos.","inescrupuloso",["escrupuloso","escrúpulo","escrupulosamente"],"A ideia é de alguém sem limites morais: inescrupuloso (in- = sem).","escrúpulo"],
+    ["Ela seguiu ___ todas as regras do edital.","escrupulosamente",["escrupulosa","escrúpulo","inescrupulosa"],"A palavra modifica o verbo “seguiu”: advérbio escrupulosamente (com extremo cuidado).","escrúpulo"],
+    ["Fiquei com ___ de pedir dinheiro emprestado de novo.","escrúpulo",["escrupuloso","escrupulosamente","inescrupuloso"],"“Ficar com escrúpulo” = ficar com receio, com peso na consciência. Precisamos do substantivo.","escrúpulo"],
+    ["Ele é muito ___ com o dinheiro dos outros: presta conta de cada centavo.","escrupuloso",["inescrupuloso","escrúpulo","escrupulosamente"],"A ideia é de alguém extremamente correto: escrupuloso.","escrúpulo"]],
+ u:["Uma pessoa sem escrúpulos seria capaz de enganar a própria família.",["Tenho escrúpulo de chocolate, como uma barra por dia.","O escrúpulo do carro quebrou na estrada."],"Escrúpulo é um limite moral ou peso na consciência, nunca um objeto ou uma vontade de comer."],
+ syn:["consciência","pudor","receio","zelo"], ant:["cinismo","falta de caráter"],
+ tip:"Muito usado no plural e na negativa: “ele não tem escrúpulos”, “uma pessoa sem escrúpulos”."},
+
+{id:"idiossincrasia", w:"idiossincrasia", c:"sf", syl:"i-di-os-sin-cra-^si-a",
+ def:"Jeito de ser, hábito ou reação própria de uma pessoa; uma mania particular.",
+ g:"mania ou característica particular de alguém",
+ fam:[["idiossincrasia","sf","mania, peculiaridade"],["idiossincrático","adj","próprio de alguém, peculiar"]],
+ ex:["Uma das *idiossincrasias* do meu pai é só tomar café na mesma xícara.","Cada cliente tem suas *idiossincrasias*, e um bom RM aprende todas.","O estilo dele é bem *idiossincrático*: ninguém escreve e-mails como ele."],
+ q:[["Todo mundo tem suas ___: a minha é arrumar os livros por cor.","idiossincrasias",["idiossincrasia","idiossincrático","idiossincráticas"],"Depois de “suas” (plural) vem o substantivo no plural: idiossincrasias.","idiossincrasia"],
+    ["O humor dela é muito ___, nem todo mundo entende.","idiossincrático",["idiossincrasia","idiossincrática","idiossincrasias"],"Concorda com “o humor” (masculino): idiossincrático.","idiossincrasia"],
+    ["Essa mania de contar os degraus é uma ___ do meu irmão.","idiossincrasia",["idiossincrático","idiossincrasias","idiossincrática"],"Depois de “uma” vem o substantivo no singular: uma idiossincrasia.","idiossincrasia"],
+    ["O diretor tem uma forma ___ de conduzir reuniões: todos ficam em pé.","idiossincrática",["idiossincrático","idiossincrasia","idiossincrasias"],"Concorda com “uma forma” (feminino): idiossincrática.","idiossincrasia"]],
+ u:["Conhecer as idiossincrasias da equipe ajuda a evitar conflitos.",["Comprei uma idiossincrasia nova no mercado.","A idiossincrasia do prédio caiu com o vento."],"Idiossincrasia é uma característica ou mania própria de alguém, não um objeto."],
+ syn:["peculiaridade","mania","particularidade","singularidade"], ant:["padrão","generalidade"],
+ tip:"Grafia: i-di-os-sin-cra-si-a (com “ss” e depois “s”). A sílaba forte é “si”."},
+
+{id:"estupefato", w:"estupefato", c:"adj", syl:"es-tu-pe-^fa-to",
+ def:"Tão surpreso que fica sem reação.",
+ g:"surpreso a ponto de ficar sem reação",
+ fam:[["estupefato","adj","pasmo, atônito"],["estupefação","sf","o espanto"]],
+ ex:["Fiquei *estupefato* com o valor da conta do restaurante.","Os pais ficaram *estupefatos* quando o filho tirou dez em matemática.","A notícia causou *estupefação* em toda a cidade."],
+ q:[["Minha avó ficou ___ quando viu o preço do tomate.","estupefata",["estupefato","estupefação","estupefatas"],"Concorda com “minha avó” (feminino): estupefata.","estupefato"],
+    ["Os torcedores ficaram ___ com a virada no último minuto.","estupefatos",["estupefato","estupefação","estupefatas"],"Concorda com “os torcedores” (masculino plural): estupefatos.","estupefato"],
+    ["Para ___ geral, o candidato desistiu no dia da eleição.","estupefação",["estupefato","estupefata","estupefatos"],"Precisamos de um substantivo: “para estupefação geral” = para espanto de todos.","estupefato"],
+    ["O auditor ficou ___ com a quantidade de erros no balanço.","estupefato",["estupefata","estupefação","estupefatos"],"Concorda com “o auditor” (masculino singular): estupefato.","estupefato"]],
+ u:["Ele ficou estupefato ao descobrir que tinha ganhado na loteria.",["Estou estupefato de fome, vamos comer?","Ela é muito estupefata, estuda todo dia."],"Estupefato é quem ficou muito surpreso, sem reação. Não tem relação com fome nem com dedicação."],
+ syn:["pasmo","atônito","perplexo","boquiaberto"], ant:["indiferente","impassível"],
+ tip:"É um jeito mais formal de dizer “de queixo caído”. Varia em gênero e número: estupefato, estupefata, estupefatos."},
+
+{id:"consternacao", w:"consternação", c:"sf", syl:"cons-ter-na-^ção",
+ def:"Tristeza profunda e abalo diante de uma notícia ou acontecimento ruim.",
+ g:"tristeza profunda, abalo",
+ fam:[["consternação","sf","tristeza profunda"],["consternar","v","deixar alguém muito triste e abalado"],["consternado","adj","profundamente triste"]],
+ verb:"consternar",
+ ex:["A notícia do acidente causou *consternação* na empresa.","Ficamos todos *consternados* com a morte do professor.","O incêndio no museu *consternou* o país inteiro."],
+ q:[["No ano passado, o fechamento da fábrica ___ a cidade inteira.","consternou",["consternação","consternado","consternar"],"Passado (no ano passado); sujeito “o fechamento” (ele): ele consternou.","consternar"],
+    ["Os colegas ficaram ___ com a demissão em massa.","consternados",["consternação","consternaram","consternado"],"Depois de “ficaram” vem o adjetivo, concordando com “os colegas” (plural): consternados.","consternar"],
+    ["A ___ tomou conta da torcida depois do rebaixamento.","consternação",["consternado","consternar","consternou"],"Depois de “a” vem o substantivo: a consternação.","consternar"],
+    ["Notícias assim sempre ___ as pessoas mais sensíveis.","consternam",["consternação","consternados","consternou"],"Sujeito “notícias assim” (elas), fato geral no presente: elas consternam.","consternar"]],
+ u:["Com consternação, a família recebeu a notícia da doença.",["A festa de aniversário foi pura consternação, todo mundo dançou.","Ganhei na rifa e fiquei consternado de tanta alegria."],"Consternação é tristeza profunda. Não combina com festa nem com alegria."],
+ syn:["tristeza","abatimento","pesar","desolação"], ant:["alegria","júbilo","contentamento"],
+ tip:"Aparece muito em notas oficiais: “é com consternação que comunicamos...”."},
+
+{id:"relutancia", w:"relutância", c:"sf", syl:"re-lu-^tân-cia",
+ def:"Falta de vontade ou resistência em fazer algo; hesitação.",
+ g:"resistência, falta de vontade",
+ fam:[["relutância","sf","resistência, má vontade"],["relutar","v","resistir, hesitar"],["relutante","adj","que resiste, hesitante"]],
+ verb:"relutar",
+ ex:["Com certa *relutância*, ele aceitou trabalhar no sábado.","Ela estava *relutante* em mudar de banco, mas as taxas a convenceram.","Eu *relutei* muito antes de apagar aquele aplicativo."],
+ q:[["Ele aceitou a proposta com ___, mas aceitou.","relutância",["relutante","relutar","relutou"],"Depois de “com” vem o substantivo: com relutância.","relutar"],
+    ["As crianças estavam ___ em ir para a cama.","relutantes",["relutante","relutância","relutaram"],"Depois de “estavam” vem o adjetivo, concordando com “as crianças” (plural): relutantes.","relutar"],
+    ["Eu ___ bastante antes de aceitar o novo emprego, mas foi a melhor decisão.","relutei",["relutância","relutante","relutou"],"Sujeito “eu” no passado: eu relutei.","relutar"],
+    ["Não adianta ___: a mudança de sistema vai acontecer.","relutar",["relutância","relutei","relutante"],"Depois de “não adianta” vem o infinitivo: não adianta relutar.","relutar"]],
+ u:["Ela aceitou o convite com relutância, porque estava cansada.",["A relutância do motor fez o carro andar mais rápido.","Ele comeu com relutância e repetiu três vezes."],"Relutância é falta de vontade, resistência. Quem repete o prato três vezes não comeu com relutância."],
+ syn:["resistência","hesitação","má vontade","receio"], ant:["disposição","entusiasmo","prontidão"],
+ tip:"Estruturas comuns: “com relutância”, “estar relutante em (fazer algo)”, “relutar em (fazer algo)”."},
+
+{id:"fidedigno", w:"fidedigno", c:"adj", syl:"fi-de-^dig-no",
+ def:"Digno de confiança; que merece crédito (uma fonte, um dado, uma pessoa).",
+ g:"confiável, digno de crédito",
+ fam:[["fidedigno","adj","confiável"],["fidedignidade","sf","a confiabilidade"]],
+ ex:["Só compartilhe notícias de fontes *fidedignas*.","Precisamos de dados *fidedignos* para fechar o relatório do cliente.","A *fidedignidade* das informações é o que dá valor à consolidação das carteiras."],
+ q:[["Essa informação veio de uma fonte ___?","fidedigna",["fidedigno","fidedignidade","fidedignos"],"Concorda com “uma fonte” (feminino singular): fidedigna.","fidedigno"],
+    ["Os números do custodiante são ___, pode usar.","fidedignos",["fidedigno","fidedignas","fidedignidade"],"Concorda com “os números” (masculino plural): fidedignos.","fidedigno"],
+    ["A auditoria atestou a ___ do balanço.","fidedignidade",["fidedigno","fidedigna","fidelidade"],"Depois de “a” vem o substantivo: a fidedignidade (confiabilidade). “Fidelidade” é outra palavra: lealdade.","fidedigno"],
+    ["O relato dele foi considerado ___ pelo juiz.","fidedigno",["fidedigna","fidedignidade","fidedignos"],"Concorda com “o relato” (masculino singular): fidedigno.","fidedigno"]],
+ u:["Antes de decidir, confira se os dados são fidedignos.",["O cachorro é fidedigno: late para todo mundo.","Estou fidedigno de tanto trabalhar."],"Fidedigno é o que merece confiança, geralmente uma fonte, um dado ou um relato."],
+ syn:["confiável","verídico","fiel","seguro"], ant:["duvidoso","suspeito","inverídico"],
+ tip:"Vem de “fé” + “digno”: digno de fé. Muito útil no trabalho com dados e relatórios."},
+
+{id:"incipiente", w:"incipiente", c:"adj", syl:"in-ci-pi-^en-te",
+ def:"Que está começando; ainda no início, pouco desenvolvido.",
+ g:"que está no começo, inicial",
+ fam:[["incipiente","adj","inicial, principiante"],["incipiência","sf","o estado inicial"]],
+ ex:["O projeto ainda é *incipiente*, mas já tem bons resultados.","Meu espanhol é *incipiente*: só sei pedir comida.","O mercado de carros elétricos no Brasil ainda é *incipiente*."],
+ q:[["A automação do processo ainda é ___, falta muito para ficar pronta.","incipiente",["insipiente","incipientes","incipiência"],"A ideia é “no começo”: incipiente, com “c”. “Insipiente” (com “s”) significa ignorante.","incipiente"],
+    ["Os estudos sobre esse remédio ainda são ___.","incipientes",["incipiente","insipientes","incipiência"],"Concorda com “os estudos” (plural) e tem a ideia de início: incipientes.","incipiente"],
+    ["A ___ do setor explica a falta de profissionais qualificados.","incipiência",["incipiente","insipiência","incipientes"],"Depois de “a” vem o substantivo: a incipiência (o estado inicial).","incipiente"],
+    ["Uma empresa ___ precisa de cuidado redobrado com o caixa.","incipiente",["incipientes","insipiente","incipiência"],"Concorda com “uma empresa” (singular) e tem a ideia de algo começando: incipiente.","incipiente"]],
+ u:["A startup ainda é incipiente, mas cresce todo mês.",["O prédio é incipiente: foi construído em 1920.","Ele é incipiente no futebol, joga há quarenta anos."],"Incipiente é o que está no começo. Algo antigo ou com muita experiência é o oposto."],
+ syn:["inicial","principiante","embrionário","nascente"], ant:["maduro","desenvolvido","consolidado"],
+ tip:"Pegadinha clássica: inCipiente (com C) = no Começo. inSipiente (com S) = ignorante, que não sabe."}
+);
+// ---------- utilidades ----------
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const CLS = {v:'verbo', sf:'substantivo feminino', sm:'substantivo masculino', adj:'adjetivo', adv:'advérbio'};
+const clsName = c => CLS[c] || c || '';
+const pad = n => String(n).padStart(2, '0');
+const strip = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '');
+const norm = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+const clone = o => JSON.parse(JSON.stringify(o));
+const LETTERS = 'ABCDE';
+const UNLOCK_HOUR = 6;
+const REVIEW_WORDS = 5;
+
+function seedFrom(str){ let h = 1779033703 ^ str.length; for (let i = 0; i < str.length; i++){ h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = h << 13 | h >>> 19; } h = Math.imul(h ^ h >>> 16, 2246822507); h = Math.imul(h ^ h >>> 13, 3266489909); return (h ^= h >>> 16) >>> 0; }
+function rngFrom(str){ let a = seedFrom(str); return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function shuffle(arr, rng){ const a = arr.slice(); for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+const pick = (arr, rng) => arr[Math.floor(rng() * arr.length)];
+
+// O "dia" do caderno vira às 6h (hora local): antes disso ainda vale o dia anterior.
+const keyOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const dayKey = (d = new Date()) => keyOf(new Date(d.getTime() - UNLOCK_HOUR * 3600e3));
+function dayDate(k){ const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d, 12); }
+const fmtDay = k => dayDate(k).toLocaleDateString('pt-BR', {weekday:'long', day:'numeric', month:'long'});
+const fmtShort = k => dayDate(k).toLocaleDateString('pt-BR', {day:'numeric', month:'short'}).replace('.', '');
+function nextUnlock(){ const n = new Date(), t = new Date(n); t.setHours(UNLOCK_HOUR, 0, 0, 0); if (t <= n) t.setDate(t.getDate() + 1); return t; }
+function countdown(){ const ms = nextUnlock() - new Date(); const h = Math.floor(ms / 3600e3), m = Math.floor(ms % 3600e3 / 60e3); return h > 0 ? `em ${h} h ${pad(m)} min` : `em ${m} min`; }
+
+// ---------- palavras ----------
+const BY_ID = Object.fromEntries(BANK.map(w => [w.id, w]));
+const BANK_IDS = BANK.map(w => w.id);
+let EXTRA = {};
+const word = id => BY_ID[id] || EXTRA[id] || null;
+const allIds = () => BANK_IDS.concat(Object.keys(EXTRA).filter(id => !BY_ID[id]));
+
+const CONJ_OVR = {
+  coibir:{pres:['coíbo','coíbe','coibimos','coíbem'], perf:['coibi','coibiu','coibimos','coibiram'], imp:['coibia','coibia','coibíamos','coibiam'], part:'coibido', ger:'coibindo'},
+  titubear:{pres:['titubeio','titubeia','titubeamos','titubeiam'], perf:['titubeei','titubeou','titubeamos','titubearam'], imp:['titubeava','titubeava','titubeávamos','titubeavam'], part:'titubeado', ger:'titubeando'},
+  auferir:{pres:['aufiro','aufere','auferimos','auferem'], perf:['auferi','auferiu','auferimos','auferiram'], imp:['auferia','auferia','auferíamos','auferiam'], part:'auferido', ger:'auferindo'},
+  indeferir:{pres:['indefiro','indefere','indeferimos','indeferem'], perf:['indeferi','indeferiu','indeferimos','indeferiram'], imp:['indeferia','indeferia','indeferíamos','indeferiam'], part:'indeferido', ger:'indeferindo'}
+};
+function conjugate(inf){
+  const stem = inf.slice(0, -2), end = inf.slice(-2);
+  if (end === 'ar'){
+    let s1 = stem;
+    if (stem.endsWith('c')) s1 = stem.slice(0, -1) + 'qu';
+    else if (stem.endsWith('g')) s1 = stem + 'u';
+    else if (stem.endsWith('ç')) s1 = stem.slice(0, -1) + 'c';
+    return {pres:[stem+'o', stem+'a', stem+'amos', stem+'am'], perf:[s1+'ei', stem+'ou', stem+'amos', stem+'aram'], imp:[stem+'ava', stem+'ava', stem+'ávamos', stem+'avam'], part:stem+'ado', ger:stem+'ando'};
+  }
+  let s0 = stem;
+  if (stem.endsWith('c')) s0 = stem.slice(0, -1) + 'ç';
+  else if (stem.endsWith('g')) s0 = stem.slice(0, -1) + 'j';
+  if (end === 'er') return {pres:[s0+'o', stem+'e', stem+'emos', stem+'em'], perf:[stem+'i', stem+'eu', stem+'emos', stem+'eram'], imp:[stem+'ia', stem+'ia', stem+'íamos', stem+'iam'], part:stem+'ido', ger:stem+'endo'};
+  if (end === 'ir') return {pres:[s0+'o', stem+'e', stem+'imos', stem+'em'], perf:[stem+'i', stem+'iu', stem+'imos', stem+'iram'], imp:[stem+'ia', stem+'ia', stem+'íamos', stem+'iam'], part:stem+'ido', ger:stem+'indo'};
+  return null;
+}
+const conjOf = w => w.verb ? (w.conj || CONJ_OVR[w.verb] || conjugate(w.verb)) : null;
+
+// ---------- estado e gravação ----------
+const LS_KEY = 'caderno-palavras-v1', LS_EXTRA = 'caderno-palavras-extra-v1';
+const freshState = () => ({v:1, known:[], learned:[], pending:[], stats:{}, daysDone:[], today:null, updatedAt:0});
+function lsGet(k){ try { const t = localStorage.getItem(k); return t ? JSON.parse(t) : null; } catch (e) { return null; } }
+function lsSet(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+function sane(s){ const f = freshState(); if (!s || typeof s !== 'object') return f; for (const k of Object.keys(f)) if (s[k] === undefined) s[k] = f[k]; return s; }
+
+let S = sane(lsGet(LS_KEY));
+let DB = null, SYNC = lsSet('caderno-palavras-probe', 1) ? 'local' : 'none';
+let writing = false, dirty = false;
+async function save(){
+  S.updatedAt = Date.now();
+  lsSet(LS_KEY, S);
+  if (!DB) return;
+  if (writing){ dirty = true; return; }
+  writing = true;
+  try { await DB.doc('progress/main').set(clone(S)); SYNC = 'cloud'; }
+  catch (e) { if (e && (e.code === 'invalid_argument' || e.code === 'revoked' || e.code === 'not_granted')){ DB = null; SYNC = 'local'; } else SYNC = 'retry'; }
+  writing = false;
+  renderMeta();
+  if (dirty){ dirty = false; save(); }
+}
+
+// ---------- ciclo diário ----------
+const isLearned = id => S.learned.some(l => l.id === id);
+const usable = id => !!word(id) && !S.known.includes(id) && !isLearned(id);
+function isFresh(id){ return usable(id) && !S.pending.includes(id) && !(S.today && S.today.options.includes(id)); }
+
+function topUp(){
+  const t = S.today;
+  const rng = rngFrom(`pool|${t.day}|${S.known.length}|${t.options.length}`);
+  const fresh = shuffle(allIds().filter(isFresh), rng);
+  while (t.options.length < 5 && fresh.length) t.options.push(fresh.shift());
+  while (t.options.length < 5 && S.pending.length){ const id = S.pending.shift(); if (usable(id) && !t.options.includes(id)){ t.options.push(id); t.carried.push(id); } }
+}
+function ensureDay(){
+  const k = dayKey();
+  if (S.today && S.today.day === k){ if (S.today.stage === 'pick') topUp(); return false; }
+  if (S.today){
+    const left = S.today.options.filter(id => id !== S.today.chosen && usable(id));
+    S.pending = S.pending.filter(id => !left.includes(id)).concat(left);
+  }
+  S.pending = S.pending.filter(usable);
+  // até 3 palavras que ficaram de dias anteriores + novas até completar 5
+  const carried = S.pending.slice(0, 3);
+  S.pending = S.pending.slice(3);
+  S.today = {day:k, options:carried.slice(), carried:carried.slice(), chosen:null, stage:'pick', attempt:0, quiz:null, result:null, reviewIds:[]};
+  topUp();
+  return true;
+}
+function reviewIdsFor(t){
+  const prev = S.learned.filter(l => !(l.day === t.day && l.id === t.chosen));
+  const ids = [];
+  for (let i = prev.length - 1; i >= 0 && ids.length < REVIEW_WORDS; i--){ const id = prev[i].id; if (!ids.includes(id) && word(id)) ids.push(id); }
+  return ids;
+}
+function streak(){
+  const set = new Set(S.daysDone); const d = dayDate(dayKey()); let n = 0;
+  if (!set.has(keyOf(d))) d.setDate(d.getDate() - 1);
+  while (set.has(keyOf(d))){ n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+
+// ---------- perguntas ----------
+function wordQuestions(w, rng){
+  const out = [];
+  const others = shuffle(BANK_IDS.filter(id => id !== w.id), rng).slice(0, 3).map(id => BY_ID[id].g);
+  out.push({t:'mc', k:'Significado', p:`O que significa “${w.w}”?`, o:shuffle([w.g, ...others], rng), a:w.g, e:w.def});
+  const typedIdx = Math.floor(rng() * w.q.length);
+  w.q.forEach((c, i) => {
+    if (i === typedIdx) out.push({t:'type', k:'Escreva a forma certa', p:c[0], hint:c[4] || w.w, a:c[1], e:c[3], cz:true});
+    else out.push({t:'mc', k:'Complete a frase', p:c[0], o:shuffle([c[1], ...c[2]], rng), a:c[1], e:c[3], cz:true});
+  });
+  out.push({t:'mc', k:'Uso correto', p:`Em qual frase “${w.w}” foi usada do jeito certo?`, o:shuffle([w.u[0], ...w.u[1]], rng), a:w.u[0], e:w.u[2]});
+  return out;
+}
+function buildQuiz(t){
+  const rng = rngFrom(`quiz|${t.day}|${t.chosen}|${t.attempt}`);
+  const qs = [];
+  const w = word(t.chosen);
+  if (w){ const own = wordQuestions(w, rng); const first = own.shift(); [first, ...shuffle(own, rng)].forEach(q => { q.sec = 'hoje'; q.wid = w.id; qs.push(q); }); }
+  const rev = [];
+  for (const id of t.reviewIds){
+    const rw = word(id); if (!rw) continue;
+    const pool = wordQuestions(rw, rng);
+    const a = pick(pool.filter(q => q.cz), rng);
+    const b = pick(pool.filter(q => q !== a), rng);
+    [a, b].forEach(q => { q.sec = 'rev'; q.wid = id; rev.push(q); });
+  }
+  return qs.concat(shuffle(rev, rng));
+}
+let Q = null;
+function quiz(){ if (!Q && S.today && S.today.quiz) Q = buildQuiz(S.today); return Q; }
+
+// ---------- ações ----------
+let VIEW = {tab:'hoje', peek:null};
+function choose(id){
+  const t = S.today; if (t.chosen || !word(id)) return;
+  t.chosen = id; t.stage = 'learn';
+  S.learned.push({id, day:t.day, score:null});
+  save(); render(true);
+}
+function unchoose(){
+  const t = S.today; if (t.stage !== 'learn') return;
+  S.learned = S.learned.filter(l => !(l.id === t.chosen && l.day === t.day));
+  t.chosen = null; t.stage = 'pick';
+  save(); render(true);
+}
+function markKnown(id){
+  const t = S.today, w = word(id); if (!w) return;
+  const snap = {options:t.options.slice(), carried:t.carried.slice(), pending:S.pending.slice()};
+  if (!S.known.includes(id)) S.known.push(id);
+  t.options = t.options.filter(x => x !== id);
+  S.pending = S.pending.filter(x => x !== id);
+  topUp(); save(); render();
+  toast(`“${w.w}” não será mais sugerida.`, 'Desfazer', () => {
+    S.known = S.known.filter(x => x !== id);
+    t.options = snap.options; t.carried = snap.carried; S.pending = snap.pending;
+    save(); render();
+  });
+}
+function restoreKnown(id){ S.known = S.known.filter(x => x !== id); if (!S.pending.includes(id)) S.pending.push(id); save(); render(); toast(`“${word(id).w}” volta a aparecer nas sugestões.`); }
+function startQuiz(){
+  const t = S.today; if (!t.chosen) return;
+  t.reviewIds = reviewIdsFor(t);
+  t.attempt = (t.attempt || 0) + 1;
+  t.stage = 'quiz'; t.quiz = {i:0, res:[], ans:[], acc:[]}; t.result = null;
+  Q = buildQuiz(t);
+  save(); render(true);
+}
+function checkTyped(q, val){
+  const n = norm(val), a = norm(q.a);
+  if (n === a) return {ok:true};
+  if (strip(n) === strip(a)) return {ok:true, accent:true};
+  return {ok:false};
+}
+function answer(val){
+  const t = S.today, qz = t.quiz, q = quiz()[qz.i];
+  if (!q || qz.res[qz.i] !== undefined) return;
+  let ok, accent = false;
+  if (q.t === 'mc') ok = val === q.a;
+  else { if (!norm(val)) return; const r = checkTyped(q, val); ok = r.ok; accent = !!r.accent; }
+  qz.res[qz.i] = ok; qz.ans[qz.i] = String(val); qz.acc[qz.i] = accent;
+  const st = S.stats[q.wid] || (S.stats[q.wid] = {ok:0, err:0});
+  ok ? st.ok++ : st.err++;
+  save(); render();
+  setTimeout(() => { const b = document.getElementById('btn-next'); if (b) b.focus({preventScroll:true}); }, 30);
+}
+function next(){
+  const t = S.today, qz = t.quiz, qs = quiz();
+  if (qz.res[qz.i] === undefined) return;
+  if (qz.i < qs.length - 1){ qz.i++; save(); render(true); return; }
+  let th = 0, tt = 0, rh = 0, rt = 0;
+  qs.forEach((q, i) => { if (q.sec === 'hoje'){ tt++; if (qz.res[i]) th++; } else { rt++; if (qz.res[i]) rh++; } });
+  t.result = {hoje:[th, tt], rev:[rh, rt]};
+  t.stage = 'done';
+  const le = S.learned.find(l => l.id === t.chosen && l.day === t.day);
+  if (le && !le.score) le.score = [th, tt];
+  if (!S.daysDone.includes(t.day)) S.daysDone.push(t.day);
+  save(); render(true);
+}
+
+// ---------- voz ----------
+const CAN_SPEAK = typeof window.speechSynthesis !== 'undefined' && typeof window.SpeechSynthesisUtterance !== 'undefined';
+function speak(text){
+  if (!CAN_SPEAK) return;
+  try {
+    const u = new SpeechSynthesisUtterance(String(text).replace(/\*/g, ''));
+    u.lang = 'pt-BR'; u.rate = 0.9;
+    const vs = speechSynthesis.getVoices();
+    const v = vs.find(v => /^pt[-_]BR/i.test(v.lang)) || vs.find(v => /^pt/i.test(v.lang));
+    if (v) u.voice = v;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  } catch (e) {}
+}
+const SPK = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/><path d="M10.5 5.5a3.5 3.5 0 0 1 0 5M12.3 3.6a6 6 0 0 1 0 8.8" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>';
+
+// ---------- renderização ----------
+function sylHTML(syl){ return String(syl).split('-').map(s => s.startsWith('^') ? `<b>${esc(s.slice(1))}</b>` : esc(s)).join('·'); }
+const sylPlain = syl => String(syl).replace(/\^/g, '').split('-').join('·');
+const hl = s => esc(s).replace(/\*([^*]+)\*/g, '<mark>$1</mark>');
+function blankHTML(p, fill, ok){
+  const e = esc(p);
+  const slot = fill == null ? '<span class="blank" aria-label="lacuna"></span>' : `<span class="filled ${ok ? 'ok' : 'bad'}">${esc(fill)}</span>`;
+  return e.includes('___') ? e.replace('___', slot) : e;
+}
+
+function renderMeta(){
+  const learned = S.learned.length, st = streak();
+  const sync = SYNC === 'cloud' ? '<span><span class="dot ok"></span>Progresso salvo na sua conta</span>'
+    : SYNC === 'retry' ? '<span><span class="dot warn"></span>Salvo neste aparelho; tentando sincronizar</span>'
+    : SYNC === 'local' ? '<span><span class="dot warn"></span>Salvo só neste navegador</span>'
+    : '<span><span class="dot"></span>Progresso não está sendo salvo</span>';
+  $('#meta').innerHTML = `<span><b>${learned}</b> ${learned === 1 ? 'palavra aprendida' : 'palavras aprendidas'}</span><span><b>${st}</b> ${st === 1 ? 'dia seguido' : 'dias seguidos'}</span>${sync}`;
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.id === VIEW.tab)));
+}
+
+function renderEntry(w, label){
+  const conj = conjOf(w);
+  const P = ['eu', 'você / ele / ela', 'nós', 'vocês / eles / elas'];
+  const fam = (w.fam || []).map(f => `<tr><td class="f">${esc(f[0])}</td><td class="p">${esc(clsName(f[1]))}</td><td>${esc(f[2])}</td></tr>`).join('');
+  const conjHTML = conj ? `<section class="sec"><h2>Conjugação de “${esc(w.verb)}”</h2>
+    <div class="tbl"><table><thead><tr><th>Pessoa</th><th>Presente</th><th>Passado concluído</th><th>Passado contínuo</th></tr></thead><tbody>
+    ${P.map((p, i) => `<tr><td class="p">${p}</td><td class="c">${esc(conj.pres[i])}</td><td class="c">${esc(conj.perf[i])}</td><td class="c">${esc(conj.imp[i])}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="foot">Particípio: <b>${esc(conj.part)}</b> (foi ${esc(conj.part)}) · Gerúndio: <b>${esc(conj.ger)}</b> (está ${esc(conj.ger)}). Passado concluído = ação terminada (“ontem eu ${esc(conj.perf[0])}”). Passado contínuo = hábito ou ação em andamento (“antes eu ${esc(conj.imp[0])}”).</p></section>` : '';
+  const listen = t => CAN_SPEAK ? `<button class="mini" data-act="speak" data-text="${esc(t)}" aria-label="Ouvir frase">${SPK}</button>` : '';
+  return `
+  <article class="entry">
+    <div class="eyebrow">${esc(label)}</div>
+    <h2 class="hw">${esc(w.w)}</h2>
+    <div class="pron"><span class="syl" title="Sílabas; em negrito, a sílaba forte">${sylHTML(w.syl || w.w)}</span><span class="cls">${esc(clsName(w.c))}</span>${CAN_SPEAK ? `<button class="listen" data-act="speak" data-text="${esc(w.w)}">${SPK} Ouvir</button>` : ''}</div>
+    <p class="def">${esc(w.def)}</p>
+  </article>
+  <section class="sec"><h2>No dia a dia</h2><ul class="ex">${w.ex.map(x => `<li><span>${hl(x)}</span>${listen(x)}</li>`).join('')}</ul></section>
+  <section class="sec"><h2>Família da palavra</h2><div class="tbl"><table><thead><tr><th>Forma</th><th>Classe</th><th>Sentido</th></tr></thead><tbody>${fam}</tbody></table></div></section>
+  ${conjHTML}
+  ${(w.syn && w.syn.length) || (w.ant && w.ant.length) ? `<section class="sec pairs">
+    ${w.syn && w.syn.length ? `<div><h2>Parecidas</h2><div class="chips">${w.syn.map(s => `<span class="chip">${esc(s)}</span>`).join('')}</div></div>` : ''}
+    ${w.ant && w.ant.length ? `<div><h2>Contrárias</h2><div class="chips">${w.ant.map(s => `<span class="chip">${esc(s)}</span>`).join('')}</div></div>` : ''}
+  </section>` : ''}
+  ${w.tip ? `<section class="sec"><div class="tip"><b>Dica.</b> ${esc(w.tip)}</div></section>` : ''}`;
+}
+
+function renderPick(){
+  const t = S.today;
+  const rev = reviewIdsFor({day:t.day, chosen:null});
+  const rows = t.options.map(id => {
+    const w = word(id);
+    return `<div class="opt">
+      <div><div class="word">${esc(w.w)}</div>
+      <div class="sub"><span class="cls">${esc(clsName(w.c))}</span><span>${esc(sylPlain(w.syl || w.w))}</span>${t.carried.includes(id) ? '<span class="badge">sugerida antes</span>' : ''}</div></div>
+      <div class="acts"><button class="btn btn-primary" data-act="choose" data-id="${esc(id)}">Aprender esta</button><button class="btn btn-ghost" data-act="known" data-id="${esc(id)}">Já conheço</button></div>
+    </div>`;
+  }).join('');
+  const intro = S.learned.length === 0 ? `<ol class="how">
+      <li><b>Escolha 1 de 5 palavras.</b> As que você não escolher podem voltar amanhã.</li>
+      <li><b>Estude o verbete:</b> sentido, frases do dia a dia, família e conjugação.</li>
+      <li><b>Faça a prova.</b> Cada palavra volta na revisão das 5 provas seguintes, com 2 perguntas.</li>
+    </ol>` : '';
+  const low = t.options.length < 5 ? `<div class="note"><b>O banco de palavras está acabando.</b> ${genBlock()}</div>` : '';
+  const revNote = rev.length
+    ? `<div class="note">Na prova de hoje: <b>6 perguntas</b> da palavra nova + <b>${rev.length * 2} de revisão</b> (${rev.map(id => esc(word(id).w)).join(', ')}).</div>`
+    : `<div class="note">A partir da segunda palavra, a prova ganha uma parte de revisão com as palavras anteriores.</div>`;
+  return `<section class="page">
+    <div class="eyebrow">${esc(fmtDay(t.day))}</div>
+    <h2 class="h">Escolha a palavra de hoje</h2>
+    <p class="lead">Toque em “Aprender esta” na que você quer estudar. Se já conhece alguma, toque em “Já conheço” e ela não será mais sugerida.</p>
+    ${intro}
+    <div class="stack">${rows || '<p class="empty">Nenhuma sugestão disponível no momento.</p>'}</div>
+    ${low}${revNote}
+  </section>`;
+}
+
+function renderLearn(){
+  const t = S.today, w = word(t.chosen);
+  const nRev = reviewIdsFor(t).length * 2;
+  return `<section class="page">
+    ${renderEntry(w, 'Palavra do dia · ' + fmtDay(t.day))}
+    <div class="cta">
+      <button class="btn btn-primary btn-lg" data-act="start">Começar a prova</button>
+      <span>${6 + nRev} perguntas: 6 sobre “${esc(w.w)}”${nRev ? ` + ${nRev} de revisão` : ''}</span>
+    </div>
+    <p><button class="link" data-act="unchoose">Escolher outra palavra</button></p>
+  </section>`;
+}
+
+function renderQuiz(){
+  const t = S.today, qz = t.quiz, qs = quiz(), q = qs[qz.i], w = word(q.wid);
+  const done = qz.res[qz.i] !== undefined, ok = qz.res[qz.i], given = qz.ans[qz.i];
+  const pct = Math.round((qz.i + (done ? 1 : 0)) / qs.length * 100);
+  const sec = q.sec === 'hoje' ? `<span class="sectag">Palavra de hoje · ${esc(w.w)}</span>` : `<span class="sectag rev">Revisão · ${esc(w.w)}</span>`;
+  let body = '';
+  if (q.t === 'mc'){
+    body = `<div class="choices">${q.o.map((o, i) => {
+      let cls = '';
+      if (done){ if (o === q.a) cls = 'is-ok'; else if (o === given) cls = 'is-bad'; else cls = 'dim'; }
+      return `<button class="choice ${cls}" data-act="answer" data-val="${esc(o)}" ${done ? 'disabled' : ''}><span class="l">${LETTERS[i]}</span><span>${esc(o)}</span></button>`;
+    }).join('')}</div>`;
+  } else {
+    body = `<p class="hint">Escreva uma forma de <b>“${esc(q.hint)}”</b> que complete a frase.</p>
+      <form class="typed" data-form="typed"><input id="typed-input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Digite aqui" value="${done ? esc(given) : ''}" ${done ? 'disabled' : ''} aria-label="Sua resposta"><button class="btn btn-primary" ${done ? 'disabled' : ''}>Conferir</button></form>`;
+  }
+  let fb = '';
+  if (done){
+    if (ok) fb = `<div class="fb ok"><h3>Correto!</h3>${qz.acc[qz.i] ? `<p>Só atenção aos acentos: o certo é <span class="ans">${esc(q.a)}</span>.</p>` : ''}<p>${esc(q.e)}</p></div>`;
+    else fb = `<div class="fb bad"><h3>Não foi dessa vez</h3>
+      <p>Resposta certa: <span class="ans">${esc(q.a)}</span></p>
+      <p>${esc(q.e)}</p>
+      <p>Lembrete: <b>${esc(w.w)}</b> = ${esc(w.g)}.</p></div>`;
+    fb += `<div class="next"><button class="btn btn-primary" id="btn-next" data-act="next">${qz.i < qs.length - 1 ? 'Próxima pergunta' : 'Ver resultado'}</button></div>`;
+  }
+  const prompt = q.t === 'type' || q.k === 'Complete a frase' ? blankHTML(q.p, done ? q.a : null, true) : esc(q.p);
+  return `<section class="page">
+    <div class="qhead">${sec}<span>Pergunta ${qz.i + 1} de ${qs.length}</span></div>
+    <div class="bar" aria-hidden="true"><i style="width:${pct}%"></i></div>
+    <div class="qcard">
+      <div class="eyebrow">${esc(q.k)}</div>
+      <p class="qp">${prompt}</p>
+      ${body}${fb}
+    </div>
+  </section>`;
+}
+
+function renderDone(){
+  const t = S.today, qs = quiz(), qz = t.quiz, r = t.result, w = word(t.chosen);
+  const misses = qs.map((q, i) => ({q, i})).filter(x => !qz.res[x.i]);
+  const missHTML = misses.length ? `<section class="sec"><h2>O que revisar</h2><div class="stack">${misses.map(({q, i}) => {
+    const mw = word(q.wid);
+    return `<div class="miss"><div class="eyebrow">${q.sec === 'hoje' ? 'Palavra de hoje' : 'Revisão'} · ${esc(mw.w)}</div>
+      <p class="qp">${q.p.includes('___') ? blankHTML(q.p, q.a, true) : esc(q.p)}</p>
+      <p>Você respondeu: <b>${esc(qz.ans[i])}</b> · Certo: <b>${esc(q.a)}</b></p>
+      <p>${esc(q.e)}</p></div>`;
+  }).join('')}</div></section>` : `<div class="note"><b>Nenhum erro.</b> Tudo certo nesta prova.</div>`;
+  return `<section class="page">
+    <div class="eyebrow">${esc(fmtDay(t.day))}</div>
+    <h2 class="h">Prova concluída</h2>
+    <p class="lead">Novas sugestões às ${UNLOCK_HOUR}h, <span class="clock" id="countdown">${countdown()}</span>. “${esc(w.w)}” entra na revisão das próximas ${REVIEW_WORDS} provas.</p>
+    <div class="score">
+      <div><div class="k">Palavra de hoje</div><div class="n">${r.hoje[0]}<small>/${r.hoje[1]}</small></div></div>
+      ${r.rev[1] ? `<div><div class="k">Revisão</div><div class="n">${r.rev[0]}<small>/${r.rev[1]}</small></div></div>` : ''}
+    </div>
+    ${missHTML}
+    <div class="cta"><button class="btn btn-primary" data-act="peek" data-id="${esc(t.chosen)}">Rever “${esc(w.w)}”</button><button class="btn btn-ghost" data-act="start">Refazer a prova</button></div>
+  </section>`;
+}
+
+function genBlock(){
+  if (GEN.busy) return `<span>${esc(GEN.msg)}</span>`;
+  const msg = GEN.msg ? `<span>${esc(GEN.msg)}</span> ` : '';
+  if (!SAMPLE) return msg + '<span>Peça ao Claude, na conversa, para acrescentar mais palavras.</span>';
+  return msg + '<button class="btn btn-ghost" data-act="gen" style="margin-top:8px">Gerar 8 palavras novas com o Claude</button>';
+}
+
+function renderLibrary(){
+  const t = S.today;
+  const inReview = new Set(reviewIdsFor(t));
+  const learned = S.learned.slice().reverse().map(l => {
+    const w = word(l.id); if (!w) return '';
+    const st = S.stats[l.id];
+    const acc = st && (st.ok + st.err) ? `${st.ok}/${st.ok + st.err} acertos` : 'sem prova';
+    const pill = (l.id === t.chosen && l.day === t.day) ? '<span class="pill new">hoje</span>' : inReview.has(l.id) ? '<span class="pill rev">em revisão</span>' : '<span class="pill done">concluída</span>';
+    return `<button class="row" data-act="peek" data-id="${esc(l.id)}"><div><div class="word">${esc(w.w)}</div><div class="sub">${esc(clsName(w.c))} · aprendida em ${esc(fmtShort(l.day))}</div></div><div class="right">${pill}<div>${acc}</div></div></button>`;
+  }).join('');
+  const known = S.known.filter(word).map(id => `<span class="kchip">${esc(word(id).w)}<button data-act="restore" data-id="${esc(id)}" aria-label="Voltar a sugerir ${esc(word(id).w)}">voltar a sugerir</button></span>`).join('');
+  const fresh = allIds().filter(isFresh).length;
+  return `<section class="page">
+    <h2 class="h">Minhas palavras</h2>
+    <p class="lead">Toque numa palavra para rever o verbete. As marcadas “em revisão” caem na próxima prova.</p>
+    <div class="stack">${learned || '<p class="empty">Nenhuma palavra aprendida ainda. Comece pela aba Hoje.</p>'}</div>
+    <section class="sec"><h2>Palavras que você já conhecia</h2>${known ? `<div class="chips">${known}</div>` : '<p class="empty">Nenhuma marcada.</p>'}</section>
+    <section class="sec"><h2>Banco de palavras</h2><div class="note" style="margin-top:0"><b>${fresh}</b> ${fresh === 1 ? 'palavra nova ainda não sugerida' : 'palavras novas ainda não sugeridas'}, mais <b>${S.pending.length}</b> guardadas de dias anteriores. ${fresh < 12 ? genBlock() : ''}</div></section>
+  </section>`;
+}
+
+function renderPeek(id){
+  const w = word(id); if (!w){ VIEW.peek = null; return render(); }
+  const l = S.learned.find(x => x.id === id);
+  return `<section class="page"><button class="link back" data-act="unpeek">← Voltar</button>${renderEntry(w, l ? 'Aprendida em ' + fmtShort(l.day) : 'Verbete')}</section>`;
+}
+
+function render(top){
+  renderMeta();
+  const app = $('#app'), t = S.today;
+  let html;
+  if (VIEW.peek) html = renderPeek(VIEW.peek);
+  else if (VIEW.tab === 'lista') html = renderLibrary();
+  else if (t.stage === 'pick') html = renderPick();
+  else if (t.stage === 'learn') html = renderLearn();
+  else if (t.stage === 'quiz') html = renderQuiz();
+  else html = renderDone();
+  if (html !== undefined) app.innerHTML = html;
+  if (top) window.scrollTo({top:0});
+  const inp = document.getElementById('typed-input');
+  if (inp && !inp.disabled) inp.focus({preventScroll:true});
+}
+
+// ---------- aviso flutuante ----------
+let toastTimer = null;
+function toast(msg, actLabel, fn){
+  const slot = $('#toast-slot');
+  slot.innerHTML = `<div class="toast" role="status"><span>${esc(msg)}</span>${actLabel ? `<button id="toast-act">${esc(actLabel)}</button>` : ''}</div>`;
+  if (actLabel) $('#toast-act').onclick = () => { slot.innerHTML = ''; fn(); };
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { slot.innerHTML = ''; }, 6000);
+}
+
+// ---------- eventos ----------
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act, id = b.dataset.id;
+  if (act === 'tab'){ VIEW = {tab:id, peek:null}; render(true); }
+  else if (act === 'choose') choose(id);
+  else if (act === 'known') markKnown(id);
+  else if (act === 'restore') restoreKnown(id);
+  else if (act === 'unchoose') unchoose();
+  else if (act === 'start') startQuiz();
+  else if (act === 'answer') answer(b.dataset.val);
+  else if (act === 'next') next();
+  else if (act === 'peek'){ VIEW.peek = id; render(true); }
+  else if (act === 'unpeek'){ VIEW.peek = null; render(true); }
+  else if (act === 'speak') speak(b.dataset.text);
+  else if (act === 'gen') generate();
+});
+document.addEventListener('submit', e => {
+  if (e.target.dataset.form === 'typed'){ e.preventDefault(); const v = document.getElementById('typed-input').value; answer(v); }
+});
+function tick(){
+  const el = document.getElementById('countdown'); if (el) el.textContent = countdown();
+  if (S.today && dayKey() !== S.today.day && S.today.stage !== 'quiz' && !VIEW.peek){ Q = null; ensureDay(); save(); render(true); }
+}
+setInterval(tick, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+
+// ---------- gerar mais palavras (Claude) ----------
+let SAMPLE = null, GEN = {busy:false, msg:''};
+const isStr = v => typeof v === 'string' && v.trim().length > 0;
+const strList = v => Array.isArray(v) ? v.filter(isStr).map(String).slice(0, 6) : [];
+function validateWord(r){
+  try {
+    if (!r || typeof r !== 'object' || !isStr(r.w) || !isStr(r.def) || !isStr(r.g)) return null;
+    const id = strip(String(r.w)).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (!id) return null;
+    const fam = (Array.isArray(r.fam) ? r.fam : []).filter(f => Array.isArray(f) && isStr(f[0])).map(f => [String(f[0]), String(f[1] || ''), String(f[2] || '')]).slice(0, 5);
+    const ex = strList(r.ex).slice(0, 4);
+    const q = (Array.isArray(r.q) ? r.q : []).filter(x => Array.isArray(x) && isStr(x[0]) && x[0].includes('___') && isStr(x[1]) && Array.isArray(x[2]))
+      .map(x => [String(x[0]), String(x[1]), x[2].filter(isStr).map(String).filter(d => norm(d) !== norm(x[1])).slice(0, 3), String(x[3] || ''), String(x[4] || r.verb || r.w)])
+      .filter(x => x[2].length >= 2).slice(0, 5);
+    const u = Array.isArray(r.u) && isStr(r.u[0]) && Array.isArray(r.u[1]) && r.u[1].filter(isStr).length ? [String(r.u[0]), r.u[1].filter(isStr).map(String).slice(0, 3), String(r.u[2] || '')] : null;
+    if (ex.length < 2 || q.length < 3 || !u) return null;
+    const w = {id, w:String(r.w), c:String(r.c || ''), syl:isStr(r.syl) ? String(r.syl) : String(r.w), def:String(r.def), g:String(r.g), fam:fam.length ? fam : [[String(r.w), String(r.c || ''), String(r.g)]], ex, q, u, syn:strList(r.syn), ant:strList(r.ant), tip:isStr(r.tip) ? String(r.tip) : '', gen:true};
+    if (isStr(r.verb)){
+      w.verb = String(r.verb);
+      const c = r.conj;
+      if (c && ['pres', 'perf', 'imp'].every(k => Array.isArray(c[k]) && c[k].length === 4 && c[k].every(isStr)) && isStr(c.part) && isStr(c.ger))
+        w.conj = {pres:c.pres.map(String), perf:c.perf.map(String), imp:c.imp.map(String), part:String(c.part), ger:String(c.ger)};
+    }
+    return w;
+  } catch (e) { return null; }
+}
+function genPrompt(){
+  const used = allIds().map(id => word(id).w).concat(['dissimulação', 'dissimular']);
+  const sample = Object.assign({}, BY_ID.mitigar); delete sample.id;
+  return `Você é professor de português do Brasil. Um adulto nativo com vocabulário limitado quer aprender uma palavra nova por dia: palavras cultas, mas úteis no dia a dia, no trabalho e no noticiário (nível de "dissimulação", "mitigar", "perspicaz", "idôneo").
+
+Crie 8 palavras NOVAS. Não repita nenhuma destas (nem formas da mesma família): ${used.join(', ')}.
+Prefira palavras com família rica (verbo + substantivo + adjetivo) e evite termos raros demais ou regionais.
+
+Responda SOMENTE com um array JSON de 8 objetos, cada um exatamente neste formato (exemplo real):
+${JSON.stringify(sample)}
+
+Regras de cada campo:
+- "w": a palavra principal. "c": "v", "sf", "sm", "adj" ou "adv".
+- "syl": sílabas separadas por "-" com "^" antes da sílaba tônica.
+- "def": definição simples, em uma frase. "g": sentido curtíssimo (até 6 palavras).
+- "fam": 2 a 4 formas da família; a primeira é a própria palavra: [forma, classe, sentido curto].
+- "verb": infinitivo do verbo da família, se existir (senão omita). Com verbo, inclua "conj": {"pres":[eu, ele, nós, eles], "perf":[eu, ele, nós, eles], "imp":[eu, ele, nós, eles], "part":"...", "ger":"..."} com as formas corretas.
+- "ex": 3 frases naturais do dia a dia, com a forma da palavra entre asteriscos.
+- "q": 4 itens [frase com ___, resposta, [3 formas erradas da mesma família], explicação curta da gramática, palavra base]. Use marcadores de tempo (ontem, todo dia, no ano passado) para que só UMA resposta caiba; nenhuma alternativa errada pode completar a frase corretamente. Varie as classes e os tempos verbais.
+- "u": [frase com uso correto, [2 frases com uso errado], explicação curta].
+- "syn", "ant": até 4 palavras cada. "tip": uma dica curta de uso, grafia ou confusão comum.`;
+}
+async function persistWord(w){
+  if (DB){ try { await DB.doc('words/' + w.id).set(w); return; } catch (e) {} }
+}
+async function generate(){
+  if (!SAMPLE || GEN.busy) return;
+  GEN = {busy:true, msg:'O Claude está escolhendo palavras novas. Isso pode levar até um minuto.'};
+  render();
+  try {
+    const out = await SAMPLE.json(genPrompt(), {modelTier:'default'});
+    const arr = Array.isArray(out) ? out : (out && Array.isArray(out.words) ? out.words : []);
+    let added = 0;
+    for (const raw of arr){
+      const w = validateWord(raw);
+      if (!w || word(w.id)) continue;
+      EXTRA[w.id] = w; added++;
+      await persistWord(w);
+    }
+    lsSet(LS_EXTRA, EXTRA);
+    GEN = {busy:false, msg: added ? `${added} palavras novas entraram no banco.` : 'Não recebi palavras válidas. Tente de novo.'};
+    if (added && S.today.stage === 'pick') topUp();
+    save();
+  } catch (e) {
+    const c = e && e.code;
+    GEN = {busy:false, msg: c === 'not_granted' ? 'Sem permissão para usar o Claude nesta página.' : c === 'rate_limited' ? 'Muitos pedidos seguidos. Tente de novo em alguns minutos.' : 'Não foi possível gerar agora. Tente mais tarde.'};
+    if (c === 'not_granted' || c === 'sampling_disabled') SAMPLE = null;
+  }
+  render();
+}
+
+// ---------- início ----------
+function loadExtras(obj){ if (!obj || typeof obj !== 'object') return; for (const k of Object.keys(obj)){ const w = validateWord(obj[k]); if (w && !BY_ID[w.id]) EXTRA[w.id] = w; } }
+loadExtras(lsGet(LS_EXTRA));
+if (ensureDay()) lsSet(LS_KEY, S);
+render();
+
+(async () => {
+  const c = window.claude;
+  if (!c || typeof c.use !== 'function') return;
+  c.use('sample').then(s => { if (s){ SAMPLE = s; if (VIEW.tab === 'lista' || S.today.options.length < 5) render(); } }).catch(() => {});
+  let db = null;
+  try { db = await c.use('db'); } catch (e) {}
+  if (!db) return;
+  try {
+    const snap = await db.doc('progress/main').get();
+    DB = db;
+    // A versão mais recente vence: permite usar o caderno em mais de um aparelho.
+    let push = !snap.exists;
+    if (snap.exists){
+      const remote = sane(clone(snap.data()));
+      if ((remote.updatedAt || 0) >= (S.updatedAt || 0)){ S = remote; Q = null; } else push = true;
+    }
+    try { const ws = await db.collection('words').get(); ws.docs.forEach(d => { const w = validateWord(d.data()); if (w && !BY_ID[w.id]) EXTRA[w.id] = w; }); lsSet(LS_EXTRA, EXTRA); } catch (e) {}
+    if (ensureDay()) push = true;
+    SYNC = 'cloud';
+    if (push) await save(); else lsSet(LS_KEY, S);
+    render();
+  } catch (e) { DB = null; renderMeta(); }
+})();
+</script>
