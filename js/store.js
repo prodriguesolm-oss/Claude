@@ -11,6 +11,11 @@ export const DEFAULT_SETTINGS = {
   installHintDismissed: false,
   lastBackupAt: null, // data do último "Exportar backup"
   backupSnoozeUntil: 0, // lembrete de backup adiado até
+  // notificações
+  pushServer: '', // endereço do servidor (Cloudflare Worker)
+  pushEnabled: false,
+  pushDevice: '', // código aleatório deste aparelho no servidor
+  defaultRemind: 60, // antecedência padrão (min) ao ligar a notificação de um item
 };
 
 const COLLECTIONS = ['places', 'events', 'visits', 'commitments', 'history', 'items'];
@@ -359,6 +364,16 @@ export async function unscheduleEvent(id) {
   const e = state.events.find((x) => x.id === id);
   if (!e) return;
   await commit([put('events', { ...e, start: null, end: null, status: 'planned', doneAt: null, updatedAt: Date.now() }), del('history', `h:event:${id}`)]);
+}
+
+// ---------- notificação de um item ----------
+
+/** minutes: null = sem notificação; número = minutos antes do início */
+export async function setRemind(kind, id, minutes) {
+  const store = { event: 'events', visit: 'visits', item: 'items', commitment: 'commitments' }[kind];
+  const rec = store && state[store].find((x) => x.id === id);
+  if (!rec) return;
+  await commit([put(store, { ...rec, remind: minutes, updatedAt: Date.now() })]);
 }
 
 // ---------- histórico ----------

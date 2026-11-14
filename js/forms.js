@@ -6,8 +6,9 @@ import {
 import { openSheet, html, ic, raw, toast, shake, confirmDialog, alertDialog, setHTML } from './ui.js';
 import {
   segHTML, switchCell, textCell, dateTimeCells, durationCell, readStart, placePickerCell,
-  bindFormWidgets, searchBar, placeThumb,
+  bindFormWidgets, searchBar, placeThumb, remindCells, readRemind,
 } from './widgets.js';
+import { pushReady } from './push.js';
 import { resolveConflicts, reportResolution, confirmSeries } from './conflicts.js';
 import { processPhoto } from './photo.js';
 import { uid, matchScore, byName } from './util.js';
@@ -18,6 +19,11 @@ import {
 const CAT_OPTIONS = [['', 'Nenhuma'], ['cultura', 'Cultura'], ['aventura', 'Aventura'], ['outros', 'Outros']];
 
 export const defaultStart = () => roundUp(Date.now() + 15 * MIN, 30);
+
+function remindGroup(value, note = '') {
+  return html`<div class="group-label">Notificação</div>
+    <div class="form-group">${remindCells(value ?? null, { defaultLead: state.settings.defaultRemind ?? 60, ready: pushReady(), note })}</div>`;
+}
 
 function deleteButton(label) {
   return html`<div class="form-group"><button type="button" class="cell danger center" data-act="delete">${ic('trash', 'i sm')} ${label}</button></div>`;
@@ -223,6 +229,7 @@ export function openEventForm({ id = null, prefill = {}, requireSchedule = false
         <div data-show-when="schedule">${dateTimeCells('e', start)}${durationCell('duration', dur, 'e')}</div>
       </div>
       <div class="group-foot">${statusLine || 'Eventos com horário entram automaticamente na Agenda.'}</div>
+      <div data-show-when="schedule">${remindGroup(e.remind)}</div>
       <div class="group-label">Classificação (opcional)</div>
       <div class="form-group pad">${segHTML('category', CAT_OPTIONS, e.category || '')}</div>
       <div class="form-group">${switchCell('favorite', 'Favorito', e.favorite, 'star')}</div>
@@ -234,7 +241,7 @@ export function openEventForm({ id = null, prefill = {}, requireSchedule = false
       if (!placeId) { shake(c.body.querySelector('.picker')); toast('Escolha um local cadastrado', { icon: 'pin' }); return false; }
       const pl = state.places.find((p) => p.id === placeId);
       const name = f.elements.name.value.trim() || pl?.name || 'Evento';
-      const data = { id: prev?.id, placeId, name, category: f.elements.category.value || null, favorite: f.elements.favorite.checked, start: null, end: null };
+      const data = { id: prev?.id, placeId, name, category: f.elements.category.value || null, favorite: f.elements.favorite.checked, start: null, end: null, remind: readRemind(f) };
       let res = null;
       let reqStart = null;
       if (f.elements.schedule.checked) {
@@ -286,6 +293,7 @@ export function openVisitForm({ id = null, prefill = {} } = {}) {
       <div class="group-label">Quando</div>
       <div class="form-group">${dateTimeCells('v', start)}${durationCell('duration', dur, 'v')}</div>
       <div class="group-foot">Quando o horário passar sem alterações, o local é marcado como visitado e vai para o Histórico.</div>
+      ${remindGroup(prev?.remind)}
       ${prev ? deleteButton('Excluir visita') : ''}
     </form>`,
     onRight: async (c) => {
@@ -301,7 +309,7 @@ export function openVisitForm({ id = null, prefill = {} } = {}) {
         res = await resolveConflicts({ key: prev ? `visit:${prev.id}` : 'new', start: s, end, title: pl?.name || 'Visita' });
         if (!res) return false;
       }
-      const saved = await saveVisit({ id: prev?.id, placeId: pid, start: res.start, end: res.end });
+      const saved = await saveVisit({ id: prev?.id, placeId: pid, start: res.start, end: res.end, remind: readRemind(f) });
       await applyMoves(res.moves);
       reportResolution(res, s);
       if (!res.policy) toast(prev ? 'Visita atualizada' : 'Visita agendada', { icon: 'check' });
@@ -387,6 +395,7 @@ export function openCommitmentForm({ id = null, prefill = {} } = {}) {
           <label class="cell"><span class="cell-ic">${ic('clock', 'i sm')}</span><span class="lbl grow">Fim</span><input type="time" name="oEnd" value="${fmtMin(minutesOfDay(onceEnd))}" step="300"></label>
         </div>
       </div>
+      ${remindGroup(prev?.remind, 'Vale para todas as ocorrências deste compromisso.')}
       ${prev ? deleteButton('Excluir compromisso') : ''}
     </form>`,
     onRight: async (c) => {
@@ -394,7 +403,7 @@ export function openCommitmentForm({ id = null, prefill = {} } = {}) {
       const name = f.elements.name.value.trim();
       if (!name) { shake(f.elements.name.closest('.cell')); toast('Dê um nome ao compromisso', { icon: 'alert' }); return false; }
       const k = f.elements.kind.value;
-      const data = { id: prev?.id, name, kind: k };
+      const data = { id: prev?.id, name, kind: k, remind: readRemind(f) };
       if (k !== 'once') {
         const readSlots = [...c.body.querySelectorAll('.slot')].map((el) => {
           const slot = { id: el.dataset.slot, startMin: parseHM(el.querySelector('[data-f=start]').value), endMin: parseHM(el.querySelector('[data-f=end]').value) };
@@ -486,6 +495,7 @@ export function openItemForm({ id = null, prefill = {} } = {}) {
       <div class="group-label">Quando</div>
       <div class="form-group">${dateTimeCells('i', start)}${durationCell('duration', dur, 'i')}</div>
       <div class="group-foot">Só um título e um horário na agenda — sem precisar cadastrar local, evento ou compromisso.</div>
+      ${remindGroup(prev?.remind)}
       ${prev ? deleteButton('Excluir horário') : ''}
     </form>`,
     onRight: async (c) => {
@@ -500,7 +510,7 @@ export function openItemForm({ id = null, prefill = {} } = {}) {
         res = await resolveConflicts({ key: prev ? `item:${prev.id}` : 'new', start: s, end, title });
         if (!res) return false;
       }
-      const saved = await saveItem({ id: prev?.id, title, note: f.elements.note.value.trim(), start: res.start, end: res.end });
+      const saved = await saveItem({ id: prev?.id, title, note: f.elements.note.value.trim(), start: res.start, end: res.end, remind: readRemind(f) });
       await applyMoves(res.moves);
       reportResolution(res, s);
       if (!res.policy) toast(prev ? 'Horário atualizado' : 'Adicionado à agenda', { icon: 'check' });

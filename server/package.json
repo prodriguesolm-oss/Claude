@@ -1,0 +1,16 @@
+{
+  "name": "agentonator-push",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Servidor de notificações (Web Push) do Agentonator para Cloudflare Workers",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node test/verify-crypto.mjs && node test/integration.mjs"
+  },
+  "devDependencies": {
+    "http_ece": "1.2.1",
+    "wrangler": "^4.0.0"
+  }
+}

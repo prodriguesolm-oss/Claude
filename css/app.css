@@ -516,3 +516,16 @@ b { font-weight: 600; }
 .slot-foot { margin-top: 8px; }
 
 .hint-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+/* ---------- notificações ---------- */
+.bell-btn { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 50px; padding: 8px 12px; margin-bottom: 14px; border-radius: 12px; background: var(--card2); color: var(--text2); text-align: left; font-size: 15px; font-weight: 600; }
+.bell-btn small { display: block; font-size: 12px; font-weight: 500; color: var(--text3); margin-top: 1px; }
+.bell-btn.on { color: var(--text); background: rgba(255, 214, 10, .12); }
+.bell-btn.on > .i:first-child { color: var(--yellow); }
+.bell-btn:active { background: var(--card3); }
+.bell-ic { color: var(--yellow); }
+.muted-cell.warnish { color: var(--orange); }
+.strongish { font-weight: 600; }
+.cell input[type="url"] { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 16px; color: var(--text); padding: 13px 0; text-align: right; -webkit-appearance: none; appearance: none; }
+.cell input[readonly] { color: var(--text2); }
+.as-group { max-height: calc(var(--vv-h, 100vh) - 110px - var(--safe-b)); overflow-y: auto; -webkit-overflow-scrolling: touch; }

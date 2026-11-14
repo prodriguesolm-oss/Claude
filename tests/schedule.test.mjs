@@ -217,3 +217,26 @@ test('horário avulso entra na agenda, pode ser movido e é concluído automatic
   assert.equal(r.history[0].id, 'h:item:i1');
   assert.equal(itemOcc(s.items[0], 0).title, 'Shopping Leblon — comprar roupa');
 });
+
+// ---------- notificações ----------
+import { computeReminders } from '../js/schedule.js';
+
+test('lembretes: só itens com notificação, na antecedência certa, ignorando o que já passou', () => {
+  const s = emptyState();
+  s.items = [];
+  s.places.push({ id: 'p1', name: 'Teatro Municipal' });
+  const now = T(MON, '08:00');
+  s.events.push({ id: 'e1', name: 'Ópera', placeId: 'p1', start: T(MON, '19:00'), end: T(MON, '21:00'), status: 'planned', remind: 60 });
+  s.events.push({ id: 'e2', name: 'Sem aviso', placeId: 'p1', start: T(MON, '15:00'), end: T(MON, '16:00'), status: 'planned', remind: null });
+  s.events.push({ id: 'e3', name: 'Já devia ter avisado', placeId: 'p1', start: T(MON, '08:30'), end: T(MON, '09:00'), status: 'planned', remind: 60 });
+  s.items.push({ id: 'i1', title: 'Shopping Leblon', start: T(TUE, '15:00'), end: T(TUE, '17:00'), status: 'planned', remind: 1440 });
+  const c = therapy(); c.remind = 30; s.commitments.push(c);
+  const r = computeReminders(s, now, 3);
+  const byId = Object.fromEntries(r.map((x) => [x.id, x]));
+  assert.equal(byId['event:e1'].at, T(MON, '18:00'));
+  assert.equal(byId['event:e1'].body, 'Começa em 1 hora — às 19:00 · Teatro Municipal');
+  assert.ok(!byId['event:e2'] && !byId['event:e3']);
+  assert.equal(byId['item:i1'].body, 'Amanhã às 15:00');
+  assert.equal(byId['commitment:c1:s1|2026-11-17'].at, T(TUE, '09:30'));
+  assert.ok(r.every((x, i) => i === 0 || r[i - 1].at <= x.at));
+});

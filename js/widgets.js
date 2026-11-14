@@ -1,7 +1,7 @@
 // Componentes reutilizáveis (cabeçalhos, busca, filtros, campos de formulário).
 import { html, ic, raw } from './ui.js';
 import { catLabel, hueOf, initials } from './util.js';
-import { fmtDur, fmtHM, parseHM, atMinutes, MIN } from './time.js';
+import { fmtDur, fmtHM, parseHM, atMinutes, MIN, LEAD_OPTIONS, leadLabel } from './time.js';
 
 export function viewHeader(title, { right = '' } = {}) {
   return html`<div class="vh-row"><h1>${title}</h1><div class="vh-right">${right}</div></div>`;
@@ -82,6 +82,24 @@ export function durationCell(name, minutes, prefix) {
     <div class="cell muted-cell" data-durend="${name}"></div>`;
 }
 
+/**
+ * Campo de notificação: liga/desliga + antecedência (chips).
+ * value: null (desligado) ou minutos antes; defaultLead: antecedência ao ligar.
+ */
+export function remindCells(value, { defaultLead = 60, ready = false, note = '' } = {}) {
+  const on = value != null;
+  const v = on ? value : defaultLead;
+  return html`${switchCell('remindOn', 'Notificar antes', on, 'bell')}
+    <div data-show-when="remindOn">
+      <input type="hidden" name="remind" value="${v}">
+      <div class="cell chips-cell"><div class="chips inset">${LEAD_OPTIONS.map((m) => html`<button type="button" class="chip sm ${m === v ? 'on' : ''}" data-remset="${m}">${leadLabel(m)}</button>`)}</div></div>
+      ${note ? html`<div class="cell muted-cell">${note}</div>` : ''}
+      ${ready ? '' : html`<div class="cell muted-cell warnish">Para o aviso chegar, ative as notificações em Ajustes (Agenda → botão de ajustes).</div>`}
+    </div>`;
+}
+
+export const readRemind = (form) => (form.elements.remindOn?.checked ? Number(form.elements.remind.value) : null);
+
 export function readStart(form, prefix) {
   const ds = form.elements[`${prefix}Date`]?.value;
   const ts = form.elements[`${prefix}Time`]?.value;
@@ -152,6 +170,11 @@ export function bindFormWidgets(root) {
     }
     const ds = e.target.closest('[data-durset]');
     if (ds) setDur(ds.dataset.durset, Number(ds.dataset.v));
+    const rs = e.target.closest('[data-remset]');
+    if (rs) {
+      form.elements.remind.value = rs.dataset.remset;
+      root.querySelectorAll('[data-remset]').forEach((b) => b.classList.toggle('on', b === rs));
+    }
   });
   root.addEventListener('change', () => { syncShow(); updateDurEnd(); });
   root.addEventListener('input', updateDurEnd);

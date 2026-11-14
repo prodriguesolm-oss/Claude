@@ -14,7 +14,7 @@
 // NÃO altera a série: as demais ocorrências continuam no horário padrão.
 // Horário avulso (item): { id, title, note, start, end, status } — só título e hora, sem local.
 
-import { MIN, DAY, dateKey, startOfDay, addDays, atMinutes, parseDateKey } from './time.js';
+import { MIN, DAY, dateKey, startOfDay, addDays, atMinutes, parseDateKey, fmtHM, dayLabel, leadPhrase } from './time.js';
 
 export const KIND_LABEL = { event: 'Evento', visit: 'Local', commitment: 'Compromisso', place: 'Local', item: 'Avulso' };
 export const FREQ_LABEL = { daily: 'Diário', weekly: 'Semanal', monthly: 'Mensal', once: 'Único' };
@@ -48,7 +48,7 @@ export function eventOcc(e, places, now) {
     key: `event:${e.id}`, kind: 'event', refId: e.id,
     title: e.name || p?.name || 'Evento', subtitle: p?.name || 'Local removido',
     placeId: e.placeId, category: e.category || null, favorite: !!e.favorite,
-    start: e.start, end: e.end, status: derive(e.status, e.start, e.end, now), recurring: false,
+    start: e.start, end: e.end, status: derive(e.status, e.start, e.end, now), recurring: false, remind: e.remind ?? null,
   };
 }
 
@@ -58,7 +58,7 @@ export function visitOcc(v, places, now) {
     key: `visit:${v.id}`, kind: 'visit', refId: v.id,
     title: p ? p.name : 'Local removido', subtitle: p?.address || 'Visita ao local',
     placeId: v.placeId, category: p?.category || null, favorite: !!p?.favorite,
-    start: v.start, end: v.end, status: derive(v.status, v.start, v.end, now), recurring: false,
+    start: v.start, end: v.end, status: derive(v.status, v.start, v.end, now), recurring: false, remind: v.remind ?? null,
   };
 }
 
@@ -67,7 +67,7 @@ export function itemOcc(it, now) {
     key: `item:${it.id}`, kind: 'item', refId: it.id,
     title: it.title || 'Sem título', subtitle: it.note || '',
     placeId: null, category: null, favorite: false,
-    start: it.start, end: it.end, status: derive(it.status, it.start, it.end, now), recurring: false,
+    start: it.start, end: it.end, status: derive(it.status, it.start, it.end, now), recurring: false, remind: it.remind ?? null,
   };
 }
 
@@ -91,7 +91,7 @@ function recurringOcc(c, slot, dk, start, end, o, now) {
   return {
     key: `commitment:${c.id}:${subKey}`, kind: 'commitment', refId: c.id, subKey, slotId: slot.id, origDate: dk,
     freq: c.kind, title: c.name || 'Compromisso', subtitle: FREQ_LABEL[c.kind] || 'Semanal', placeId: null, category: null, favorite: false,
-    start, end, status: derive(o?.status, start, end, now), recurring: true, overridden: !!(o && o.start != null),
+    start, end, status: derive(o?.status, start, end, now), recurring: true, overridden: !!(o && o.start != null), remind: c.remind ?? null,
   };
 }
 
@@ -102,7 +102,7 @@ export function commitmentOccs(c, from, to, now) {
       out.push({
         key: `commitment:${c.id}:once`, kind: 'commitment', refId: c.id, subKey: 'once',
         freq: 'once', title: c.name || 'Compromisso', subtitle: 'Compromisso único', placeId: null, category: null,
-        favorite: false, start: c.start, end: c.end, status: derive(c.status, c.start, c.end, now), recurring: false,
+        favorite: false, start: c.start, end: c.end, status: derive(c.status, c.start, c.end, now), recurring: false, remind: c.remind ?? null,
       });
     }
     return out;
@@ -330,6 +330,23 @@ export function sweep(state, now, lastSweep) {
   }
   res.places = [...touched.values()];
   return res;
+}
+
+/**
+ * Lembretes a enviar pelo servidor de notificações: um por ocorrência com notificação ligada,
+ * nos próximos `days` dias (o app re-sincroniza sempre que é aberto ou algo muda).
+ */
+export function computeReminders(state, now = Date.now(), days = 45) {
+  const out = [];
+  for (const o of expand(state, now, now + days * DAY, now)) {
+    if (o.remind == null || o.status === 'done' || o.status === 'missed') continue;
+    const at = o.start - o.remind * MIN;
+    if (at <= now + 30_000) continue; // a hora de avisar já passou
+    const when = o.remind >= 1440 ? `${dayLabel(o.start, at)} às ${fmtHM(o.start)}` : `Começa ${leadPhrase(o.remind)} — às ${fmtHM(o.start)}`;
+    const extra = (o.kind === 'event' || o.kind === 'item' || o.kind === 'visit') && o.subtitle ? ` · ${o.subtitle}` : '';
+    out.push({ id: o.key, at, until: o.start, title: o.title, body: `${when}${extra}` });
+  }
+  return out.sort((a, b) => a.at - b.at).slice(0, 400);
 }
 
 /** distribui blocos sobrepostos em colunas (visual da agenda do dia) */

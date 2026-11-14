@@ -1,5 +1,6 @@
 // Ponto de entrada: monta a estrutura, abas, inicia o armazenamento e a varredura periódica.
 import { init, subscribe, runSweep } from './store.js';
+import { scheduleSync } from './push.js';
 import { html, ic, setHTML, overlayCount, alertDialog } from './ui.js';
 import { createAgendaView } from './views/agenda.js';
 import {
@@ -122,7 +123,9 @@ async function boot() {
   }
   document.documentElement.classList.add('ready');
   subscribe(onStoreChange);
+  subscribe(() => scheduleSync()); // qualquer mudança -> atualiza os avisos no servidor
   show('agenda');
+  scheduleSync(800);
 
   // a cada minuto: conclui o que passou e atualiza a linha do "agora"
   setInterval(async () => {
@@ -132,6 +135,7 @@ async function boot() {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       runSweep().then(() => { const v = views.get(current); if (v && !overlayCount()) v.view.update(); }).catch(console.error);
+      scheduleSync(300);
     }
   });
 

@@ -111,6 +111,26 @@ export function fmtRange(s, e) {
   return `${fmtHM(s)}–${fmtHM(e)}${plus > 0 ? ` (+${plus})` : ''}`;
 }
 
+/** antecedências de notificação oferecidas (minutos) */
+export const LEAD_OPTIONS = [0, 5, 10, 15, 30, 60, 120, 180, 1440];
+
+/** "Na hora", "15 min", "1h", "1 dia" */
+export function leadLabel(min) {
+  if (!min) return 'Na hora';
+  if (min < 60) return `${min} min`;
+  if (min % 1440 === 0) return min === 1440 ? '1 dia' : `${min / 1440} dias`;
+  return fmtDur(min);
+}
+
+/** "agora", "em 15 minutos", "em 1 hora", "em 2 horas" */
+export function leadPhrase(min) {
+  if (!min) return 'agora';
+  if (min < 60) return `em ${min} minutos`;
+  if (min % 1440 === 0) return min === 1440 ? 'em 1 dia' : `em ${min / 1440} dias`;
+  if (min % 60 === 0) return min === 60 ? 'em 1 hora' : `em ${min / 60} horas`;
+  return `em ${fmtDur(min)}`;
+}
+
 /** arredonda para cima no próximo múltiplo de `step` minutos (hora local) */
 export function roundUp(t, step = 30) {
   const d = new Date(t);

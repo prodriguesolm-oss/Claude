@@ -2,8 +2,12 @@
 import {
   state, subscribe, toggleFavorite, setPlaceVisited, getPhoto, setOccStatus, cancelOccurrence,
   restoreOccurrence, unscheduleEvent, deleteEvent, deleteVisit, deleteCommitment, updateSettings,
-  exportData, importData, wipeAll, db, deleteItem, markBackupDone,
+  exportData, importData, wipeAll, db, deleteItem, markBackupDone, setRemind,
 } from './store.js';
+import {
+  pushSupported, permission, pushReady, pushStatus, onPushStatus, enablePush, disablePush, sendTest, syncNow, normalizeServer,
+} from './push.js';
+import { isIOS, isStandalone } from './util.js';
 import { openSheet, actionSheet, confirmDialog, alertDialog, toast, html, ic, setHTML } from './ui.js';
 import { placeThumb, catBadge, switchCell } from './widgets.js';
 import { openPlaceForm, openEventForm, openVisitForm, openCommitmentForm, openRescheduleForm, openItemForm } from './forms.js';
@@ -14,7 +18,10 @@ import { KIND_ICON } from './icons.js';
 import { haptic } from './util.js';
 import {
   MIN, DAY, fmtDayLong, fmtRange, fmtDur, fmtHM, dayLabel, fmtDateShort, fmtMin, parseHM, dateKey, parseDateKey,
+  LEAD_OPTIONS, leadLabel,
 } from './time.js';
+
+const remindText = (m) => (m === 0 ? 'Notificar na hora do início' : `Notificar ${leadLabel(m)} antes`);
 
 // ---------- detalhe do local ----------
 
@@ -113,6 +120,11 @@ export function openOccurrenceSheet(key) {
         ${occ.overridden ? html`<div class="occ-note warnish">${ic('info', 'i xs')} Horário alterado só ${SCOPE_LABEL[occ.freq] || 'desta vez'} (original: ${fmtDateShort(parseDateKey(occ.origDate).getTime())})</div>` : ''}
       </div>
       ${conflicts.length ? html`<div class="warn">${ic('alert', 'i sm')}<div><b>Sobreposto com:</b> ${conflicts.map((o) => `${o.title} (${fmtRange(o.start, o.end)})`).join(', ')}</div></div>` : ''}
+      <button type="button" class="bell-btn ${occ.remind != null ? 'on' : ''}" data-act="remind">
+        ${ic(occ.remind != null ? 'bell' : 'bellOff', 'i sm')}
+        <span class="grow">${occ.remind != null ? remindText(occ.remind) : 'Sem notificação · toque para ativar'}${occ.recurring ? html`<small>vale para todas as ocorrências</small>` : ''}</span>
+        ${ic('chevR', 'i sm muted')}
+      </button>
       <div class="group-label">Adiar</div>
       <div class="qa">
         <button type="button" data-shift="15">+15 min</button>
@@ -174,6 +186,25 @@ export function openOccurrenceSheet(key) {
     }
     const act = e.target.closest('[data-act]')?.dataset.act;
     switch (act) {
+      case 'remind': {
+        const cur = occ.remind;
+        const v = await actionSheet({
+          title: 'Notificação',
+          message: occ.recurring ? 'Vale para todas as ocorrências deste compromisso.' : `${occ.title} · ${dayLabel(occ.start)} ${fmtRange(occ.start, occ.end)}`,
+          actions: [
+            { label: `${cur == null ? '✓ ' : ''}Sem notificação`, value: 'off', icon: 'bellOff' },
+            ...LEAD_OPTIONS.map((m) => ({ label: `${cur === m ? '✓ ' : ''}${m === 0 ? 'Na hora do início' : `${leadLabel(m)} antes`}`, value: String(m) })),
+          ],
+        });
+        if (v == null) break;
+        const minutes = v === 'off' ? null : Number(v);
+        await setRemind(occ.kind, occ.refId, minutes);
+        haptic();
+        if (minutes == null) toast('Notificação desligada', { icon: 'bellOff' });
+        else if (!pushReady()) alertDialog({ title: 'Lembrete salvo', message: 'Falta só ativar as notificações deste iPhone: Agenda → botão de ajustes → Notificações.' });
+        else toast(minutes === 0 ? 'Vou avisar na hora do início' : `Vou avisar ${leadLabel(minutes)} antes`, { icon: 'bell' });
+        break;
+      }
       case 'resched':
         openRescheduleForm(occ, (s, en) => moveWithConflicts(occ, s, en).then((r) => { if (r && !r.policy) toast('Horário atualizado', { icon: 'clock' }); return r; }));
         break;
@@ -274,15 +305,55 @@ export function backupAgeLabel(now = Date.now()) {
   return `Último backup: ${days === 0 ? 'hoje' : days === 1 ? 'ontem' : `há ${days} dias`}`;
 }
 
+function notificationsHtml(s) {
+  const sup = pushSupported();
+  let title;
+  let hint;
+  let icn = 'bell';
+  if (!sup) {
+    title = 'Indisponível aqui'; icn = 'bellOff';
+    hint = isIOS() && !isStandalone() ? 'Abra o Agentonator pelo ícone da Tela de Início (iOS 16.4 ou mais novo).' : 'Este navegador não oferece notificações para web apps.';
+  } else if (!s.pushEnabled) {
+    title = 'Desativadas'; icn = 'bellOff';
+    hint = 'Cole o endereço do seu servidor gratuito abaixo e toque em Ativar.';
+  } else if (permission() !== 'granted') {
+    title = 'Sem permissão'; icn = 'bellOff';
+    hint = 'Libere em Ajustes do iPhone → Notificações → Agentonator.';
+  } else if (pushStatus.lastError) {
+    title = 'Atenção'; hint = pushStatus.lastError;
+  } else {
+    title = 'Ativadas ✓';
+    hint = pushStatus.lastSync ? `${pushStatus.count} aviso(s) agendado(s) · sincronizado às ${fmtHM(pushStatus.lastSync)}` : 'Sincronizando…';
+  }
+  const def = s.defaultRemind ?? 60;
+  return html`<div class="group-label">Notificações</div>
+    <div class="form-group">
+      <div class="cell"><span class="cell-ic">${ic(icn, 'i sm')}</span><span class="grow"><span class="cell-title">${title}</span><span class="cell-hint">${hint}</span></span></div>
+      <label class="cell"><span class="lbl">Servidor</span><input type="url" name="pushServer" value="${s.pushServer || ''}" placeholder="https://agentonator-push…workers.dev" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url" ${s.pushEnabled ? 'readonly' : ''}></label>
+      ${s.pushEnabled
+        ? html`<button type="button" class="cell" data-act="push-test"><span class="cell-ic">${ic('bell', 'i sm')}</span><span class="grow">Enviar notificação de teste</span></button>
+          <button type="button" class="cell" data-act="push-sync"><span class="cell-ic">${ic('repeat', 'i sm')}</span><span class="grow">Sincronizar agora</span></button>
+          <button type="button" class="cell danger" data-act="push-off"><span class="cell-ic">${ic('bellOff', 'i sm')}</span><span class="grow">Desativar notificações</span></button>`
+        : html`<button type="button" class="cell" data-act="push-on" ${sup ? '' : 'disabled'}><span class="cell-ic">${ic('bell', 'i sm')}</span><span class="grow accent strongish">Ativar notificações</span></button>`}
+    </div>
+    <div class="group-foot">Os avisos são enviados por um servidor gratuito seu (Cloudflare) — passo a passo no README do projeto. Ele guarda só o título e o horário dos avisos ligados.</div>
+    <div class="group-label">Antecedência padrão</div>
+    <div class="form-group"><div class="cell chips-cell"><div class="chips inset">${LEAD_OPTIONS.map((m) => html`<button type="button" class="chip sm ${m === def ? 'on' : ''}" data-defrem="${m}">${leadLabel(m)}</button>`)}</div></div></div>
+    <div class="group-foot">Usada quando você liga a notificação de um item (padrão: 1h antes). Cada item pode ter a sua.</div>`;
+}
+
 export function openSettings() {
   const ctl = openSheet({ title: 'Ajustes', left: 'Fechar', className: 'settings-sheet' });
   let storageInfo = '';
   const render = () => {
     const s = state.settings;
+    const typed = ctl.body.querySelector('input[name=pushServer]');
+    const typedValue = typed && document.activeElement === typed ? typed.value : null;
     const counts = `${state.places.length} locais · ${state.events.length} eventos · ${state.commitments.length} compromissos · ${state.items.length} avulsos · ${state.history.length} no histórico`;
     setHTML(ctl.body, html`<form class="form" onsubmit="return false">
       <div class="group-label">Conflitos de horário</div>
       <div class="form-group">${POLICIES.map(([v, label, hint]) => html`<button type="button" class="cell radio" data-policy="${v}"><span class="grow"><span class="cell-title">${label}</span><span class="cell-hint">${hint}</span></span>${s.conflictPolicy === v ? ic('check', 'i accent') : ''}</button>`)}</div>
+      ${notificationsHtml(s)}
       <div class="group-label">Seus dados</div>
       <div class="form-group">
         <div class="cell"><span class="cell-ic">${ic('shield', 'i sm')}</span><span class="grow"><span class="cell-title">Salvo neste iPhone</span><span class="cell-hint">${counts}${storageInfo ? html`<br>${storageInfo}` : ''}</span></span></div>
@@ -294,6 +365,10 @@ export function openSettings() {
       <div class="form-group"><button type="button" class="cell danger center" data-act="wipe">Apagar todos os dados</button></div>
       <div class="about">Agentonator 1.0 · feito para iPhone</div>
     </form>`);
+    if (typedValue != null) {
+      const inp = ctl.body.querySelector('input[name=pushServer]');
+      if (inp) { inp.value = typedValue; inp.focus(); }
+    }
   };
   render();
   Promise.all([db.estimate(), db.requestPersist()]).then(([est, persisted]) => {
@@ -302,10 +377,12 @@ export function openSettings() {
     if (!ctl.closed) render();
   });
   const unsub = subscribe(() => { if (!ctl.closed) render(); });
-  ctl.result.then(unsub);
+  const unsubPush = onPushStatus(() => { if (!ctl.closed) render(); });
+  ctl.result.then(() => { unsub(); unsubPush(); });
 
   ctl.body.addEventListener('change', async (e) => {
     const t = e.target;
+    if (t.name === 'pushServer' && !state.settings.pushEnabled) await updateSettings({ pushServer: normalizeServer(t.value) });
     if (t.dataset.ref === 'importFile' && t.files?.[0]) {
       try {
         const data = JSON.parse(await t.files[0].text());
@@ -325,6 +402,36 @@ export function openSettings() {
     const pol = e.target.closest('[data-policy]')?.dataset.policy;
     if (pol) { await updateSettings({ conflictPolicy: pol }); haptic(); return; }
     const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'push-on') {
+      // enablePush pede a permissão logo no início: tem que acontecer direto neste toque (regra do iOS)
+      const btn = e.target.closest('[data-act]');
+      btn.disabled = true;
+      try {
+        await enablePush(ctl.body.querySelector('input[name=pushServer]').value);
+        haptic();
+        toast('Notificações ativadas', { icon: 'bell' });
+      } catch (err) {
+        alertDialog({ title: 'Não foi possível ativar', message: err.message });
+      } finally { btn.disabled = false; render(); }
+      return;
+    }
+    if (act === 'push-test') {
+      try { await sendTest(); toast('Teste enviado — deve chegar em alguns segundos', { icon: 'bell' }); } catch (err) { alertDialog({ title: 'O teste falhou', message: err.message }); }
+      return;
+    }
+    if (act === 'push-sync') {
+      await syncNow({ force: true });
+      if (pushStatus.lastError) alertDialog({ title: 'Não sincronizou', message: pushStatus.lastError });
+      else toast(`${pushStatus.count} aviso(s) agendado(s) no servidor`, { icon: 'check' });
+      return;
+    }
+    if (act === 'push-off') {
+      const ok = await confirmDialog({ title: 'Desativar notificações?', message: 'Os avisos agendados deixam de ser enviados. As escolhas de notificação de cada item continuam salvas.', ok: 'Desativar', destructive: true });
+      if (ok) { await disablePush(); toast('Notificações desativadas', { icon: 'bellOff' }); }
+      return;
+    }
+    const defrem = e.target.closest('[data-defrem]')?.dataset.defrem;
+    if (defrem != null) { await updateSettings({ defaultRemind: Number(defrem) }); haptic(); return; }
     if (act === 'export') {
       try { await doExport(); } catch (err) { alertDialog({ title: 'Falha ao exportar', message: err.message }); }
     }

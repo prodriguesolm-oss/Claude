@@ -62,6 +62,15 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
   *adiar o que já estava marcado* (em cascata), *colocar o novo depois* ou *manter sobreposto*. Em **Ajustes**
   você define um comportamento padrão. Blocos sobrepostos ficam listrados com ⚠.
 
+### Notificações
+- Em qualquer item com horário (evento, visita a local, horário avulso, compromisso), toque no **sino**
+  na ficha da agenda — ou ligue **Notificar antes** no formulário — e escolha a antecedência:
+  na hora, 5/10/15/30 min, 1 h, 2 h, 3 h ou 1 dia. O padrão é **1 hora antes** (muda em Ajustes) e cada item
+  pode ter a sua.
+- O iPhone mostra o aviso ("Ópera Carmen — Começa em 1 hora — às 19:00 · Teatro Municipal") mesmo com o app fechado.
+- Requer configurar uma vez um servidor gratuito na sua conta da Cloudflare: **[passo a passo](server/README.md)**.
+  Ele guarda só o título e o horário dos avisos ligados.
+
 ### Conclusão automática e histórico
 - Marcar um local como **visitado** (✓) registra no histórico.
 - Qualquer item com horário na agenda (evento, visita a local, compromisso) cujo horário **passou sem
@@ -106,12 +115,14 @@ node tests/e2e.cjs               # teste de ponta a ponta num iPhone emulado (re
 Estrutura:
 
 ```
-index.html, manifest.webmanifest, sw.js   PWA (instalação + offline)
+index.html, manifest.webmanifest, sw.js   PWA (instalação + offline + recebimento de notificações)
 css/app.css                               visual estilo iOS (modo escuro)
 js/schedule.js                            lógica pura: recorrência, exceções por semana, conflitos, conclusão automática
 js/store.js, js/db.js                     estado, ações e persistência (IndexedDB + cópia local)
 js/forms.js, js/sheets.js                 formulários e fichas
 js/views/                                 abas
+js/push.js                                inscrição e sincronização dos avisos com o servidor
+server/                                   servidor de notificações (Cloudflare Worker) — ver server/README.md
 tests/                                    testes
 ```
 

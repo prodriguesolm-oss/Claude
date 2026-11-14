@@ -1,6 +1,6 @@
 // Service worker: deixa o app funcionando offline e abrindo instantaneamente.
 // Estratégia: responde do cache e atualiza em segundo plano (stale-while-revalidate).
-const VERSION = 'agentonator-v3';
+const VERSION = 'agentonator-v4';
 const ASSETS = [
   './',
   'index.html',
@@ -12,6 +12,7 @@ const ASSETS = [
   'js/forms.js',
   'js/icons.js',
   'js/photo.js',
+  'js/push.js',
   'js/rows.js',
   'js/schedule.js',
   'js/sheets.js',
@@ -75,5 +76,27 @@ self.addEventListener('fetch', (event) => {
       if (shell) return shell;
     }
     return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  })());
+});
+
+// ---------- notificações ----------
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data ? event.data.text() : '' }; }
+  event.waitUntil(self.registration.showNotification(data.title || 'Agentonator', {
+    body: data.body || '',
+    tag: data.tag || undefined,
+    icon: 'icons/icon-192.png',
+    badge: 'icons/icon-192.png',
+    data: { url: data.url || './' },
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of all) if ('focus' in c) return c.focus();
+    return self.clients.openWindow(event.notification.data?.url || './');
   })());
 });

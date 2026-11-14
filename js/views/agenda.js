@@ -211,7 +211,7 @@ export function createAgendaView() {
       const width = `calc((100% - var(--tl-l) - 8px) / ${it.cols} - 3px)`;
       const sub = o.kind === 'event' ? o.subtitle : o.kind === 'visit' ? 'Visita' : o.kind === 'item' ? o.subtitle : o.recurring ? (FREQ_LABEL[o.freq] || '') : '';
       return html`<div class="tl-b k-${o.kind} st-${o.status} ${it.conflict ? 'conflict' : ''} ${compact ? 'compact' : ''}" data-key="${o.key}" data-start="${o.start}" style="top:${top}px;height:${h}px;left:${left};width:${width}">
-        <div class="tl-b-t">${it.conflict ? ic('alert', 'i xxs warn-ic') : ''}${o.status === 'done' ? ic('check', 'i xxs') : ''}${o.title}${compact ? html`<span class="tl-b-inline"> · ${fmtHM(o.start)}</span>` : ''}</div>
+        <div class="tl-b-t">${it.conflict ? ic('alert', 'i xxs warn-ic') : ''}${o.status === 'done' ? ic('check', 'i xxs') : ''}${o.remind != null && (o.status === 'planned' || o.status === 'ongoing') ? ic('bell', 'i xxs bell-ic') : ''}${o.title}${compact ? html`<span class="tl-b-inline"> · ${fmtHM(o.start)}</span>` : ''}</div>
         ${compact ? '' : html`<div class="tl-b-s">${fmtRange(o.start, o.end)}${sub ? ` · ${sub}` : ''}</div>`}
         ${o.recurring ? html`<span class="tl-b-rep">${ic('repeat', 'i xxs')}</span>` : ''}
       </div>`;
