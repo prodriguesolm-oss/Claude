@@ -3,8 +3,10 @@
 // é atualizada depois que o iOS confirma a gravação.
 
 const NAME = 'agentonator';
-const VERSION = 1;
-export const STORES = ['places', 'events', 'visits', 'commitments', 'history', 'photos', 'meta'];
+// v1: locais, eventos, visitas, compromissos, histórico, fotos, meta
+// v2: + items (horários avulsos). Atualizar a versão só CRIA o que falta — nada existente é apagado.
+const VERSION = 2;
+export const STORES = ['places', 'events', 'visits', 'commitments', 'history', 'photos', 'meta', 'items'];
 
 let dbPromise = null;
 

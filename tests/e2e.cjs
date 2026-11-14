@@ -119,7 +119,7 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   await sheet().locator('input[name=name]').fill('Terapia');
   const slot = sheet().locator('.slot').first();
   // limpar dia pré-selecionado e escolher terça
-  for (const b of await slot.locator('.dchip.on').all()) await b.click();
+  for (const b of await slot.locator('.slot-days .dchip.on').all()) await b.click();
   await slot.locator('.dchip[data-day="2"]').click();
   await slot.locator('[data-f=start]').fill('10:00');
   await slot.locator('[data-f=end]').fill('11:00');
@@ -136,13 +136,40 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   await view('commitments').locator('.fab').click(); await page.waitForTimeout(400);
   await sheet().locator('input[name=name]').fill('Trabalho');
   const s3 = sheet().locator('.slot').first();
-  for (const b of await s3.locator('.dchip.on').all()) await b.click();
+  for (const b of await s3.locator('.slot-days .dchip.on').all()) await b.click();
   for (const d of [1,2,3,4,5]) await s3.locator(`.dchip[data-day="${d}"]`).click();
   await s3.locator('[data-f=start]').fill('13:00');
   await s3.locator('[data-f=end]').fill('17:00');
   await save();
   if (await page.locator('.alert-wrap').count()) { await page.locator('.alert-btn.strong').click(); await page.waitForTimeout(400); }
-  assert(await view('commitments').locator('.row').count() === 2, '2 compromissos listados');
+  // diário: remédio 08:00–08:15
+  await view('commitments').locator('.fab').click(); await page.waitForTimeout(400);
+  await sheet().locator('input[name=name]').fill('Remédio');
+  await sheet().locator('[data-seg=kind] button[data-v=daily]').click();
+  assert(await sheet().locator('.slot-days').first().isHidden() && await sheet().locator('.slot-mdays').first().isHidden(), 'diário não pede dias');
+  await sheet().locator('.slot [data-f=start]').fill('08:00');
+  await sheet().locator('.slot [data-f=end]').fill('08:15');
+  await save();
+  if (await page.locator('.alert-wrap').count()) { await page.locator('.alert-btn.strong').click(); await page.waitForTimeout(400); }
+  // mensal: aluguel dia 5, 10:00–10:30
+  await view('commitments').locator('.fab').click(); await page.waitForTimeout(400);
+  await sheet().locator('input[name=name]').fill('Pagar aluguel');
+  await sheet().locator('[data-seg=kind] button[data-v=monthly]').click();
+  const ms = sheet().locator('.slot').first();
+  for (const b of await ms.locator('.slot-mdays .dchip.on').all()) await b.click();
+  await ms.locator('.dchip[data-mday="5"]').click();
+  await ms.locator('[data-f=start]').fill('10:00');
+  await ms.locator('[data-f=end]').fill('10:30');
+  await shot('08b-commitment-monthly');
+  await save();
+  if (await page.locator('.alert-wrap').count()) { await page.locator('.alert-btn.strong').click(); await page.waitForTimeout(400); }
+  assert(await view('commitments').locator('.row').count() === 4, '4 compromissos listados');
+  const secs = await view('commitments').locator('.sec-h span').allTextContents();
+  assert(JSON.stringify(secs) === JSON.stringify(['Diários', 'Semanais', 'Mensais']), `agrupados por frequência ${JSON.stringify(secs)}`);
+  assert(await view('commitments').locator('[data-act=fav]').count() === 0, 'compromissos não têm estrela de favorito');
+  await view('commitments').locator('[data-chip=monthly]').click(); await page.waitForTimeout(150);
+  assert(await view('commitments').locator('.row').count() === 1, 'filtro "Mensais" mostra só o aluguel');
+  await view('commitments').locator('[data-chip=all]').click(); await page.waitForTimeout(150);
   await shot('09-commitments-list');
 
   // ---------- Agenda ----------
@@ -172,7 +199,7 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   const wedBlocks = await view('agenda').locator('.tl-b').allInnerTexts();
   assert(wedBlocks.some(t => t.includes('Terapia')), 'terapia foi para quarta (só esta semana)');
   const n = await page.evaluate(async () => (await import('./js/store.js')).state.commitments.length);
-  assert(n === 2, 'nenhum compromisso novo foi criado ao adiar');
+  assert(n === 4, 'nenhum compromisso novo foi criado ao adiar');
 
   // conflito: novo evento na quarta 10:30 bate com a terapia (10:00-11:00)
   await view('agenda').locator('.fab').click(); await page.waitForTimeout(400);
@@ -206,6 +233,23 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   console.log('   após arrastar:', dragged.map(t => t.replace(/\n/g,' | ')));
   assert(dragged.some(t => t.includes('Visita guiada') && t.includes('12:30')), 'arrastar moveu o evento para 12:30 (com o empurrão em cascata)'.replace(' (com o empurrão em cascata)',''));
 
+  // horário avulso pela agenda (só título e hora)
+  await view('agenda').locator('.fab').click(); await page.waitForTimeout(400);
+  await page.locator('.as-btn:has-text("Horário avulso")').click(); await page.waitForTimeout(400);
+  await sheet().locator('input[name=title]').fill('Shopping Leblon — comprar roupa');
+  await sheet().locator('input[name=iDate]').fill(dk(wed));
+  await sheet().locator('input[name=iTime]').fill('18:00');
+  await sheet().locator('[data-durset=duration][data-v="120"]').click();
+  await shot('13b-item-form');
+  await save();
+  if (await page.locator('.as-wrap.open').count()) { await page.locator('.as-btn:has-text("Manter sobreposto")').click(); await page.waitForTimeout(500); }
+  assert(await view('agenda').locator('.tl-b.k-item:has-text("Shopping Leblon")').count() === 1, 'horário avulso aparece na agenda');
+  await view('agenda').locator('.tl-b.k-item').click(); await page.waitForTimeout(500);
+  await shot('13c-item-sheet');
+  await sheet().locator('[data-shift="60"]').click(); await page.waitForTimeout(500);
+  await sheet().locator('[data-sheet=left]').click(); await page.waitForTimeout(400);
+  assert((await view('agenda').locator('.tl-b.k-item').innerText()).includes('19:00'), 'horário avulso adiado em 1h');
+
   // modo lista
   await page.click('[data-mode=list]'); await page.waitForTimeout(300);
   await shot('14-agenda-list');
@@ -223,8 +267,8 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   // ---------- persistência ----------
   console.log('Persistência');
   await page.reload({ waitUntil: 'networkidle' }); await page.waitForTimeout(700);
-  const counts = await page.evaluate(async () => { const { state } = await import('./js/store.js'); return [state.places.length, state.events.length, state.commitments.length, state.history.length, state.places.filter(p => p.favorite).length]; });
-  assert(JSON.stringify(counts) === JSON.stringify([5, 3, 2, 1, 1]), `após recarregar, dados intactos ${JSON.stringify(counts)}`);
+  const counts = await page.evaluate(async () => { const { state } = await import('./js/store.js'); return [state.places.length, state.events.length, state.commitments.length, state.history.length, state.places.filter(p => p.favorite).length, state.items.length]; });
+  assert(JSON.stringify(counts) === JSON.stringify([5, 3, 4, 1, 1, 1]), `após recarregar, dados intactos ${JSON.stringify(counts)}`);
   const photoOk = await page.evaluate(async () => { const s = await import('./js/store.js'); const p = s.state.places.find(x => x.name === 'Teatro Municipal'); return !!(p.thumb && await s.getPhoto(p.id)); });
   assert(photoOk, 'foto do local continua salva');
 

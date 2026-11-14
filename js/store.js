@@ -12,13 +12,15 @@ export const DEFAULT_SETTINGS = {
   sleepStart: 23 * 60,
   sleepEnd: 7 * 60,
   installHintDismissed: false,
+  lastBackupAt: null, // data do último "Exportar backup"
+  backupSnoozeUntil: 0, // lembrete de backup adiado até
 };
 
-const COLLECTIONS = ['places', 'events', 'visits', 'commitments', 'history'];
+const COLLECTIONS = ['places', 'events', 'visits', 'commitments', 'history', 'items'];
 const MIRROR_KEY = 'agentonator.mirror.v1';
 
 export const state = {
-  places: [], events: [], visits: [], commitments: [], history: [],
+  places: [], events: [], visits: [], commitments: [], history: [], items: [],
   settings: { ...DEFAULT_SETTINGS },
   lastSweep: 0,
   persisted: null,
@@ -70,18 +72,27 @@ function writeMirror() {
       v: 1, savedAt: Date.now(),
       places: state.places.map(({ thumb, ...p }) => p),
       events: state.events, visits: state.visits, commitments: state.commitments,
-      history: state.history, settings: state.settings, lastSweep: state.lastSweep,
+      history: state.history, items: state.items, settings: state.settings, lastSweep: state.lastSweep,
     };
     localStorage.setItem(MIRROR_KEY, JSON.stringify(snap));
   } catch { /* cota cheia: o IndexedDB continua sendo a fonte principal */ }
 }
+
+let persistAskedThisSession = false;
 
 async function commit(ops, { silent = false } = {}) {
   if (!ops.length) return;
   await db.tx(ops); // lança erro se não gravou -> nada muda na tela
   for (const op of ops) applyOp(op);
   writeMirror();
-  if (!silent) emit();
+  if (!silent) {
+    emit();
+    // reforça o pedido de "não apagar meus dados" ao iOS depois de uma gravação feita pelo usuário
+    if (state.persisted !== true && !persistAskedThisSession) {
+      persistAskedThisSession = true;
+      db.requestPersist().then((p) => { state.persisted = p; });
+    }
+  }
 }
 
 // ---------- inicialização ----------
@@ -124,6 +135,7 @@ export async function runSweep() {
     const ops = [
       ...r.events.map((v) => put('events', v)),
       ...r.visits.map((v) => put('visits', v)),
+      ...r.items.map((v) => put('items', v)),
       ...r.places.map((v) => put('places', v)),
       ...r.history.filter((h) => !state.history.some((x) => x.id === h.id)).map((v) => put('history', v)),
     ];
@@ -211,7 +223,7 @@ export async function setPlaceVisited(id, visited) {
 
 // ---------- favoritos ----------
 
-const STORE_OF = { place: 'places', event: 'events', commitment: 'commitments' };
+const STORE_OF = { place: 'places', event: 'events' }; // compromissos não têm favorito
 
 export async function toggleFavorite(kind, id) {
   const store = STORE_OF[kind];
@@ -247,6 +259,11 @@ export const saveVisit = (input) => saveScheduled('visits', 'visit', input, { no
 export async function deleteEvent(id) { await commit([del('events', id)]); }
 export async function deleteVisit(id) { await commit([del('visits', id)]); }
 
+// ---------- horários avulsos (só título e hora) ----------
+
+export const saveItem = (input) => saveScheduled('items', 'item', input, { note: '' });
+export async function deleteItem(id) { await commit([del('items', id)]); }
+
 // ---------- compromissos ----------
 
 export async function saveCommitment(input) {
@@ -257,7 +274,8 @@ export async function saveCommitment(input) {
     ...prev, ...input,
     id: prev?.id || input.id || uid(), createdAt: prev?.createdAt || now, updatedAt: now,
   };
-  if (c.kind === 'weekly') { c.start = null; c.end = null; }
+  delete c.favorite; delete c.category; // não se aplicam a compromissos
+  if (c.kind !== 'once') { c.start = null; c.end = null; }
   else { c.slots = []; c.overrides = {}; }
   await commit([put('commitments', c)]);
   await runSweep();
@@ -272,7 +290,7 @@ export async function deleteCommitment(id) { await commit([del('commitments', id
 export async function applyMoves(moves) {
   if (!moves.length) return;
   const now = Date.now();
-  const working = { ...state, events: [...state.events], visits: [...state.visits], commitments: [...state.commitments] };
+  const working = { ...state, events: [...state.events], visits: [...state.visits], items: [...state.items], commitments: [...state.commitments] };
   const changed = new Map();
   const ops = [];
   for (const m of moves) {
@@ -295,8 +313,8 @@ function markPlaceVisitedOps(placeId, at, via) {
 export async function setOccStatus(occ, status) {
   const now = Date.now();
   const ops = [];
-  if (occ.kind === 'event' || occ.kind === 'visit') {
-    const store = occ.kind === 'event' ? 'events' : 'visits';
+  const store = { event: 'events', visit: 'visits', item: 'items' }[occ.kind];
+  if (store) {
     const rec = state[store].find((x) => x.id === occ.refId);
     ops.push(put(store, { ...rec, status, doneAt: status === 'done' ? Math.min(now, rec.end) : null, updatedAt: now }));
   } else {
@@ -321,10 +339,10 @@ export async function setOccStatus(occ, status) {
   await commit(ops);
 }
 
-/** cancela só esta ocorrência de um compromisso semanal */
+/** cancela só esta ocorrência de um compromisso recorrente */
 export async function cancelOccurrence(occ) {
   const c = state.commitments.find((x) => x.id === occ.refId);
-  if (!c || c.kind !== 'weekly') return;
+  if (!c || c.kind === 'once') return;
   const ov = { ...(c.overrides || {}), [occ.subKey]: { cancelled: true } };
   await commit([put('commitments', { ...c, overrides: ov, updatedAt: Date.now() }), del('history', historyId(occ))]);
 }
@@ -365,9 +383,14 @@ export async function exportData() {
   return {
     app: 'agentonator', format: 1, exportedAt: new Date().toISOString(),
     places: state.places, events: state.events, visits: state.visits,
-    commitments: state.commitments, history: state.history,
+    commitments: state.commitments, history: state.history, items: state.items,
     settings: state.settings, lastSweep: state.lastSweep, photos,
   };
+}
+
+/** registra que um backup foi exportado agora */
+export async function markBackupDone() {
+  await updateSettings({ lastBackupAt: Date.now(), backupSnoozeUntil: 0 });
 }
 
 export async function importData(data) {

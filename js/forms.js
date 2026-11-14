@@ -1,7 +1,7 @@
 // Formulários de cadastro/edição: local, evento, visita a local e compromisso.
 import {
   state, savePlace, saveEvent, saveVisit, saveCommitment, deleteEvent, deleteVisit, deleteCommitment,
-  applyMoves, getPhoto, deletePlace, placeDependents,
+  applyMoves, getPhoto, deletePlace, placeDependents, saveItem, deleteItem,
 } from './store.js';
 import { openSheet, html, ic, raw, toast, shake, confirmDialog, alertDialog, setHTML } from './ui.js';
 import {
@@ -325,10 +325,15 @@ export function openVisitForm({ id = null, prefill = {} } = {}) {
 // ---------- compromisso ----------
 
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const FREQS = [['daily', 'Diário'], ['weekly', 'Semanal'], ['monthly', 'Mensal'], ['once', 'Único']];
+const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
 function slotHTML(slot, canDelete) {
+  const days = slot.days || [];
+  const mdays = slot.monthDays || [];
   return html`<div class="form-group slot" data-slot="${slot.id}">
-    <div class="slot-days">${WEEK_ORDER.map((d) => html`<button type="button" class="dchip ${slot.days.includes(d) ? 'on' : ''}" data-day="${d}" aria-pressed="${slot.days.includes(d)}">${WD_CAP[d]}</button>`)}</div>
+    <div class="slot-days only-weekly">${WEEK_ORDER.map((d) => html`<button type="button" class="dchip ${days.includes(d) ? 'on' : ''}" data-day="${d}" aria-pressed="${days.includes(d)}">${WD_CAP[d]}</button>`)}</div>
+    <div class="slot-mdays only-monthly">${MONTH_DAYS.map((d) => html`<button type="button" class="dchip mchip ${mdays.includes(d) ? 'on' : ''}" data-mday="${d}" aria-pressed="${mdays.includes(d)}">${d}</button>`)}</div>
     <div class="slot-times">
       <label class="tfield"><span>Das</span><input type="time" data-f="start" value="${fmtMin(slot.startMin)}" step="300"></label>
       <label class="tfield"><span>às</span><input type="time" data-f="end" value="${fmtMin(slot.endMin)}" step="300"></label>
@@ -342,29 +347,38 @@ export function openCommitmentForm({ id = null, prefill = {} } = {}) {
   const kind = prev?.kind || prefill.kind || 'weekly';
   const pStart = prefill.start || defaultStart();
   const startMin = minutesOfDay(pStart);
-  const slots = prev?.slots?.length ? prev.slots : [{ id: uid(), days: [new Date(pStart).getDay()], startMin, endMin: (startMin + 60) % 1440 }];
+  const slots = prev?.slots?.length
+    ? prev.slots
+    : [{ id: uid(), days: [new Date(pStart).getDay()], monthDays: [new Date(pStart).getDate()], startMin, endMin: (startMin + 60) % 1440 }];
   const onceStart = prev?.kind === 'once' && prev.start ? prev.start : pStart;
   const onceEnd = prev?.kind === 'once' && prev.end ? prev.end : pStart + 60 * MIN;
   const startDate = prev?.startDate || dateKey(Date.now());
   const untilDate = prev?.untilDate || '';
+  const REC = 'kind=daily|weekly|monthly';
 
   const ctl = openSheet({
     title: prev ? 'Editar compromisso' : 'Novo compromisso',
     right: 'Salvar',
     body: html`<form class="form" novalidate autocomplete="off">
       <div class="form-group">${textCell('name', 'Nome', prev?.name || '', { placeholder: 'Ex.: Terapia, Trabalho, Academia', required: true })}</div>
-      <div class="form-group pad">${segHTML('kind', [['weekly', 'Semanal (repete)'], ['once', 'Único']], kind)}</div>
-      <div data-show-when="kind=weekly">
-        <div class="group-label">Horários na semana</div>
-        <div data-ref="slots">${slots.map((s) => slotHTML(s, slots.length > 1))}</div>
+      <div class="group-label">Frequência</div>
+      <div class="form-group pad">${segHTML('kind', FREQS, kind)}</div>
+      <div data-show-when="${REC}">
+        <div class="group-label">
+          <span data-show-when="kind=daily">Horários (todos os dias)</span>
+          <span data-show-when="kind=weekly">Dias da semana e horários</span>
+          <span data-show-when="kind=monthly">Dias do mês e horários</span>
+        </div>
+        <div class="slots" data-ref="slots" data-kind="${kind}">${slots.map((s) => slotHTML(s, slots.length > 1))}</div>
         <button type="button" class="btn tinted full" data-act="add-slot">${ic('plus', 'i sm')} Adicionar outro horário</button>
+        <div class="group-foot slot-foot" data-show-when="kind=monthly">Dias 29, 30 e 31: nos meses mais curtos, vale o último dia do mês.</div>
         <div class="group-label" style="margin-top:22px">Período</div>
         <div class="form-group">
           <label class="cell"><span class="cell-ic">${ic('calendar', 'i sm')}</span><span class="lbl grow">Começa em</span><input type="date" name="startDate" value="${startDate}"></label>
           ${switchCell('hasUntil', 'Tem data para acabar', !!untilDate, 'ban')}
           <div data-show-when="hasUntil"><label class="cell"><span class="cell-ic">${ic('calendar', 'i sm')}</span><span class="lbl grow">Termina em</span><input type="date" name="untilDate" value="${untilDate}"></label></div>
         </div>
-        <div class="group-foot">Para mudar só uma semana (ex.: adiar a terapia de amanhã em 24h), toque no compromisso na Agenda. As outras semanas continuam iguais.</div>
+        <div class="group-foot">Para mudar só uma vez (ex.: adiar a terapia de amanhã em 24h), toque no compromisso na Agenda. As outras ocorrências continuam iguais.</div>
       </div>
       <div data-show-when="kind=once">
         <div class="group-label">Quando</div>
@@ -373,7 +387,6 @@ export function openCommitmentForm({ id = null, prefill = {} } = {}) {
           <label class="cell"><span class="cell-ic">${ic('clock', 'i sm')}</span><span class="lbl grow">Fim</span><input type="time" name="oEnd" value="${fmtMin(minutesOfDay(onceEnd))}" step="300"></label>
         </div>
       </div>
-      <div class="form-group">${switchCell('favorite', 'Favorito', !!prev?.favorite, 'star')}</div>
       ${prev ? deleteButton('Excluir compromisso') : ''}
     </form>`,
     onRight: async (c) => {
@@ -381,25 +394,26 @@ export function openCommitmentForm({ id = null, prefill = {} } = {}) {
       const name = f.elements.name.value.trim();
       if (!name) { shake(f.elements.name.closest('.cell')); toast('Dê um nome ao compromisso', { icon: 'alert' }); return false; }
       const k = f.elements.kind.value;
-      const data = { id: prev?.id, name, kind: k, favorite: f.elements.favorite.checked };
-      if (k === 'weekly') {
-        const readSlots = [...c.body.querySelectorAll('.slot')].map((el) => ({
-          id: el.dataset.slot,
-          days: [...el.querySelectorAll('.dchip.on')].map((b) => Number(b.dataset.day)).sort(),
-          startMin: parseHM(el.querySelector('[data-f=start]').value),
-          endMin: parseHM(el.querySelector('[data-f=end]').value),
-        }));
-        const bad = readSlots.findIndex((s) => !s.days.length || s.startMin == null || s.endMin == null || s.startMin === s.endMin);
+      const data = { id: prev?.id, name, kind: k };
+      if (k !== 'once') {
+        const readSlots = [...c.body.querySelectorAll('.slot')].map((el) => {
+          const slot = { id: el.dataset.slot, startMin: parseHM(el.querySelector('[data-f=start]').value), endMin: parseHM(el.querySelector('[data-f=end]').value) };
+          if (k === 'weekly') slot.days = [...el.querySelectorAll('.slot-days .dchip.on')].map((b) => Number(b.dataset.day)).sort();
+          if (k === 'monthly') slot.monthDays = [...el.querySelectorAll('.slot-mdays .dchip.on')].map((b) => Number(b.dataset.mday)).sort((a, b) => a - b);
+          return slot;
+        });
+        const bad = readSlots.findIndex((s) => s.startMin == null || s.endMin == null || s.startMin === s.endMin
+          || (k === 'weekly' && !s.days.length) || (k === 'monthly' && !s.monthDays.length));
         if (bad >= 0) {
           shake(c.body.querySelectorAll('.slot')[bad]);
-          toast('Escolha ao menos um dia e horários válidos', { icon: 'alert' });
+          toast(k === 'daily' ? 'Confira os horários' : k === 'weekly' ? 'Escolha ao menos um dia da semana' : 'Escolha ao menos um dia do mês', { icon: 'alert' });
           return false;
         }
         data.slots = readSlots;
         data.startDate = f.elements.startDate.value || dateKey(Date.now());
         data.untilDate = f.elements.hasUntil.checked ? (f.elements.untilDate.value || null) : null;
         if (data.untilDate && data.untilDate < data.startDate) { toast('A data final é antes do início', { icon: 'alert' }); return false; }
-        if (prev?.kind === 'weekly') data.overrides = prev.overrides || {};
+        if (prev && prev.kind !== 'once') data.overrides = prev.overrides || {};
         const ok = await confirmSeries({ ...prev, ...data, id: prev?.id || 'new', overrides: data.overrides || {} });
         if (!ok) return false;
         const saved = await saveCommitment(data);
@@ -429,6 +443,9 @@ export function openCommitmentForm({ id = null, prefill = {} } = {}) {
     const all = slotsEl.querySelectorAll('.slot');
     all.forEach((s) => { s.querySelector('[data-act="del-slot"]').hidden = all.length < 2; });
   };
+  ctl.body.addEventListener('change', (e) => {
+    if (e.target.name === 'kind' || e.target.closest?.('[data-seg="kind"]')) slotsEl.dataset.kind = ctl.body.querySelector('input[name=kind]').value;
+  });
   ctl.body.addEventListener('click', async (e) => {
     const chip = e.target.closest('.dchip');
     if (chip) { chip.classList.toggle('on'); chip.setAttribute('aria-pressed', chip.classList.contains('on')); return; }
@@ -437,15 +454,66 @@ export function openCommitmentForm({ id = null, prefill = {} } = {}) {
       const last = slotsEl.querySelector('.slot:last-child');
       const sm = parseHM(last?.querySelector('[data-f=start]').value) ?? 600;
       const em = parseHM(last?.querySelector('[data-f=end]').value) ?? 660;
-      slotsEl.insertAdjacentHTML('beforeend', String(slotHTML({ id: uid(), days: [], startMin: sm, endMin: em }, true)));
+      slotsEl.insertAdjacentHTML('beforeend', String(slotHTML({ id: uid(), days: [], monthDays: [], startMin: sm, endMin: em }, true)));
       refreshDel();
     }
     if (act === 'del-slot') { e.target.closest('.slot').remove(); refreshDel(); }
     if (act === 'delete' && prev) {
-      const ok = await confirmDialog({ title: `Excluir “${prev.name}”?`, message: prev.kind === 'weekly' ? 'Todas as ocorrências futuras saem da agenda. O histórico é mantido.' : 'Ele sai da agenda. O histórico é mantido.', ok: 'Excluir', destructive: true });
+      const ok = await confirmDialog({ title: `Excluir “${prev.name}”?`, message: prev.kind !== 'once' ? 'Todas as ocorrências futuras saem da agenda. O histórico é mantido.' : 'Ele sai da agenda. O histórico é mantido.', ok: 'Excluir', destructive: true });
       if (!ok) return;
       await deleteCommitment(prev.id);
       toast('Compromisso excluído', { icon: 'trash' });
+      ctl.close();
+    }
+  });
+  return ctl.result;
+}
+
+// ---------- horário avulso (só título e hora) ----------
+
+export function openItemForm({ id = null, prefill = {} } = {}) {
+  const prev = id ? state.items.find((i) => i.id === id) : null;
+  const start = prev?.start ?? prefill.start ?? defaultStart();
+  const dur = prev ? Math.round((prev.end - prev.start) / MIN) : 60;
+  const ctl = openSheet({
+    title: prev ? 'Editar horário' : 'Horário avulso',
+    right: 'Salvar',
+    body: html`<form class="form" novalidate autocomplete="off">
+      <div class="form-group">
+        ${textCell('title', 'Título', prev?.title || '', { placeholder: 'Ex.: Shopping Leblon, comprar roupa', required: true })}
+        ${textCell('note', 'Obs.', prev?.note || '', { placeholder: 'Opcional', multiline: true })}
+      </div>
+      <div class="group-label">Quando</div>
+      <div class="form-group">${dateTimeCells('i', start)}${durationCell('duration', dur, 'i')}</div>
+      <div class="group-foot">Só um título e um horário na agenda — sem precisar cadastrar local, evento ou compromisso.</div>
+      ${prev ? deleteButton('Excluir horário') : ''}
+    </form>`,
+    onRight: async (c) => {
+      const f = c.body.querySelector('form');
+      const title = f.elements.title.value.trim();
+      if (!title) { shake(f.elements.title.closest('.cell')); toast('Dê um título', { icon: 'alert' }); return false; }
+      const s = readStart(f, 'i');
+      if (s == null) { toast('Informe data e horário', { icon: 'alert' }); return false; }
+      const end = s + Number(f.elements.duration.value) * MIN;
+      let res = { start: s, end, moves: [], policy: null };
+      if (!(prev && prev.start === s && prev.end === end)) {
+        res = await resolveConflicts({ key: prev ? `item:${prev.id}` : 'new', start: s, end, title });
+        if (!res) return false;
+      }
+      const saved = await saveItem({ id: prev?.id, title, note: f.elements.note.value.trim(), start: res.start, end: res.end });
+      await applyMoves(res.moves);
+      reportResolution(res, s);
+      if (!res.policy) toast(prev ? 'Horário atualizado' : 'Adicionado à agenda', { icon: 'check' });
+      return saved;
+    },
+  });
+  bindFormWidgets(ctl.body);
+  ctl.body.addEventListener('click', async (ev) => {
+    if (ev.target.closest('[data-act="delete"]') && prev) {
+      const ok = await confirmDialog({ title: `Excluir “${prev.title}”?`, message: 'Ele sai da agenda. O histórico é mantido.', ok: 'Excluir', destructive: true });
+      if (!ok) return;
+      await deleteItem(prev.id);
+      toast('Horário excluído', { icon: 'trash' });
       ctl.close();
     }
   });
@@ -461,7 +529,7 @@ export function openRescheduleForm(occ, onSubmit) {
     body: html`<form class="form" novalidate>
       <div class="occ-mini k-${occ.kind}"><b>${occ.title}</b><span>Atual: ${fmtDayLong(occ.start)} · ${fmtRange(occ.start, occ.end)}</span></div>
       <div class="form-group">${dateTimeCells('r', occ.start)}${durationCell('duration', dur, 'r')}</div>
-      ${occ.recurring ? html`<div class="group-foot">Vale <b>somente para esta ocorrência</b>. As outras semanas continuam no horário de sempre.</div>` : ''}
+      ${occ.recurring ? html`<div class="group-foot">Vale <b>somente para esta ocorrência</b>. As outras continuam no horário de sempre.</div>` : ''}
     </form>`,
     onRight: async (c) => {
       const f = c.body.querySelector('form');

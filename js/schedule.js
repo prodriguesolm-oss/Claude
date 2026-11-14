@@ -5,14 +5,23 @@
 // { key, kind: 'event'|'visit'|'commitment', refId, subKey?, slotId?, origDate?,
 //   title, subtitle, placeId, category, favorite, start, end, status, recurring, overridden }
 //
-// Compromisso semanal: { kind:'weekly', slots:[{id, days:[0..6], startMin, endMin}],
+// Compromisso recorrente: { kind:'daily'|'weekly'|'monthly', slots:[{id, days?:[0..6], monthDays?:[1..31], startMin, endMin}],
 //   startDate, untilDate, overrides: { 'slotId|YYYY-MM-DD': {start,end}|{cancelled}|{status} } }
-// Uma alteração numa semana específica vira um "override" daquela ocorrência e
-// NÃO altera a série: as demais semanas continuam no horário padrão.
+//   - daily: todo dia; weekly: nos dias da semana em `days`; monthly: nos dias do mês em `monthDays`
+//     (dia 29–31 em mês mais curto = último dia do mês).
+// Compromisso único: { kind:'once', start, end }.
+// Uma alteração numa ocorrência específica vira um "override" só dela e
+// NÃO altera a série: as demais ocorrências continuam no horário padrão.
+// Horário avulso (item): { id, title, note, start, end, status } — só título e hora, sem local.
 
 import { MIN, DAY, dateKey, startOfDay, addDays, atMinutes, parseDateKey } from './time.js';
 
-export const KIND_LABEL = { event: 'Evento', visit: 'Local', commitment: 'Compromisso', place: 'Local' };
+export const KIND_LABEL = { event: 'Evento', visit: 'Local', commitment: 'Compromisso', place: 'Local', item: 'Avulso' };
+export const FREQ_LABEL = { daily: 'Diário', weekly: 'Semanal', monthly: 'Mensal', once: 'Único' };
+/** "só nesta semana", "só neste dia"... */
+export const SCOPE_LABEL = { daily: 'neste dia', weekly: 'nesta semana', monthly: 'neste mês', once: 'desta vez' };
+export const isRecurring = (c) => c && c.kind !== 'once';
+const STORE_OF_KIND = { event: 'events', visit: 'visits', item: 'items' };
 
 export const overlaps = (a, b) => a.start < b.end && b.start < a.end;
 
@@ -53,18 +62,35 @@ export function visitOcc(v, places, now) {
   };
 }
 
-function slotInRange(c, slot, dk, wd) {
-  if (!slot.days || !slot.days.includes(wd)) return false;
-  if (c.startDate && dk < c.startDate) return false;
-  if (c.untilDate && dk > c.untilDate) return false;
-  return true;
+export function itemOcc(it, now) {
+  return {
+    key: `item:${it.id}`, kind: 'item', refId: it.id,
+    title: it.title || 'Sem título', subtitle: it.note || '',
+    placeId: null, category: null, favorite: false,
+    start: it.start, end: it.end, status: derive(it.status, it.start, it.end, now), recurring: false,
+  };
 }
 
-function weeklyOcc(c, slot, dk, start, end, o, now) {
+const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
+
+/** a ocorrência deste horário (slot) acontece na data dk? */
+export function slotMatches(c, slot, dk) {
+  if (c.startDate && dk < c.startDate) return false;
+  if (c.untilDate && dk > c.untilDate) return false;
+  const d = parseDateKey(dk);
+  if (c.kind === 'daily') return true;
+  if (c.kind === 'monthly') {
+    const dim = daysInMonth(d.getFullYear(), d.getMonth());
+    return (slot.monthDays || []).some((md) => Math.min(md, dim) === d.getDate());
+  }
+  return !!slot.days && slot.days.includes(d.getDay());
+}
+
+function recurringOcc(c, slot, dk, start, end, o, now) {
   const subKey = occKeyOf(slot.id, dk);
   return {
     key: `commitment:${c.id}:${subKey}`, kind: 'commitment', refId: c.id, subKey, slotId: slot.id, origDate: dk,
-    title: c.name || 'Compromisso', subtitle: 'Semanal', placeId: null, category: null, favorite: !!c.favorite,
+    freq: c.kind, title: c.name || 'Compromisso', subtitle: FREQ_LABEL[c.kind] || 'Semanal', placeId: null, category: null, favorite: false,
     start, end, status: derive(o?.status, start, end, now), recurring: true, overridden: !!(o && o.start != null),
   };
 }
@@ -75,8 +101,8 @@ export function commitmentOccs(c, from, to, now) {
     if (c.start != null && c.end != null && c.start < to && c.end > from) {
       out.push({
         key: `commitment:${c.id}:once`, kind: 'commitment', refId: c.id, subKey: 'once',
-        title: c.name || 'Compromisso', subtitle: 'Compromisso único', placeId: null, category: null,
-        favorite: !!c.favorite, start: c.start, end: c.end, status: derive(c.status, c.start, c.end, now), recurring: false,
+        freq: 'once', title: c.name || 'Compromisso', subtitle: 'Compromisso único', placeId: null, category: null,
+        favorite: false, start: c.start, end: c.end, status: derive(c.status, c.start, c.end, now), recurring: false,
       });
     }
     return out;
@@ -87,14 +113,13 @@ export function commitmentOccs(c, from, to, now) {
   // 1) ocorrências no horário padrão (as que têm horário próprio vêm no passo 2)
   for (let d = addDays(startOfDay(from), -1); d < to; d = addDays(d, 1)) {
     const dk = dateKey(d);
-    const wd = new Date(d).getDay();
     for (const slot of slots) {
-      if (!slotInRange(c, slot, dk, wd)) continue;
+      if (!slotMatches(c, slot, dk)) continue;
       const o = ov[occKeyOf(slot.id, dk)];
       if (o && (o.cancelled || o.start != null)) continue;
       const start = atMinutes(dk, slot.startMin);
       const end = start + slotDurMin(slot) * MIN;
-      if (start < to && end > from) out.push(weeklyOcc(c, slot, dk, start, end, o, now));
+      if (start < to && end > from) out.push(recurringOcc(c, slot, dk, start, end, o, now));
     }
   }
   // 2) ocorrências remarcadas (podem ter ido para outro dia)
@@ -103,8 +128,8 @@ export function commitmentOccs(c, from, to, now) {
     if (!(o.start < to && o.end > from)) continue;
     const [slotId, dk] = k.split('|');
     const slot = slots.find((s) => s.id === slotId);
-    if (!slot || !slotInRange(c, slot, dk, parseDateKey(dk).getDay())) continue;
-    out.push(weeklyOcc(c, slot, dk, o.start, o.end, o, now));
+    if (!slot || !slotMatches(c, slot, dk)) continue;
+    out.push(recurringOcc(c, slot, dk, o.start, o.end, o, now));
   }
   return out;
 }
@@ -120,6 +145,10 @@ export function expand(state, from, to, now = Date.now()) {
   for (const v of state.visits) {
     if (v.start == null || v.end == null) continue;
     if (v.start < to && v.end > from) out.push(visitOcc(v, places, now));
+  }
+  for (const it of state.items || []) {
+    if (it.start == null || it.end == null) continue;
+    if (it.start < to && it.end > from) out.push(itemOcc(it, now));
   }
   for (const c of state.commitments) out.push(...commitmentOccs(c, from, to, now));
   out.sort((a, b) => a.start - b.start || a.end - b.end || a.title.localeCompare(b.title));
@@ -138,6 +167,10 @@ export function occByKey(state, key, now = Date.now()) {
     const v = state.visits.find((x) => x.id === id);
     return v ? visitOcc(v, places, now) : null;
   }
+  if (kind === 'item') {
+    const it = (state.items || []).find((x) => x.id === id);
+    return it && it.start != null ? itemOcc(it, now) : null;
+  }
   if (kind === 'commitment') {
     const c = state.commitments.find((x) => x.id === id);
     if (!c) return null;
@@ -149,7 +182,7 @@ export function occByKey(state, key, now = Date.now()) {
     if (o?.cancelled) return null;
     const start = o?.start ?? atMinutes(dk, slot.startMin);
     const end = o?.end ?? start + slotDurMin(slot) * MIN;
-    return weeklyOcc(c, slot, dk, start, end, o, now);
+    return recurringOcc(c, slot, dk, start, end, o, now);
   }
   return null;
 }
@@ -221,8 +254,8 @@ export function historyFor(occ, source, at) {
  */
 export function applyMove(state, occ, start, end, now = Date.now()) {
   const hid = historyId(occ);
-  if (occ.kind === 'event' || occ.kind === 'visit') {
-    const store = occ.kind === 'event' ? 'events' : 'visits';
+  if (STORE_OF_KIND[occ.kind]) {
+    const store = STORE_OF_KIND[occ.kind];
     const rec = state[store].find((x) => x.id === occ.refId);
     const wasClosed = rec.status === 'done' || rec.status === 'missed';
     return {
@@ -259,7 +292,7 @@ export function applyMove(state, occ, start, end, now = Date.now()) {
  */
 export function sweep(state, now, lastSweep) {
   const places = placeMap(state);
-  const res = { events: [], visits: [], places: [], history: [] };
+  const res = { events: [], visits: [], items: [], places: [], history: [] };
   const touched = new Map();
   const markPlace = (pid, at, via) => {
     const p = touched.get(pid) || places.get(pid);
@@ -279,6 +312,12 @@ export function sweep(state, now, lastSweep) {
     res.visits.push(nv);
     res.history.push(historyFor(visitOcc(nv, places, now), 'auto', v.end));
     markPlace(v.placeId, v.end, 'visit');
+  }
+  for (const it of state.items || []) {
+    if ((it.status || 'planned') !== 'planned' || it.start == null || it.end == null || it.end > now) continue;
+    const ni = { ...it, status: 'done', doneAt: it.end, updatedAt: now };
+    res.items.push(ni);
+    res.history.push(historyFor(itemOcc(ni, now), 'auto', it.end));
   }
   for (const c of state.commitments) {
     const from = Math.max(lastSweep || 0, c.createdAt || 0);

@@ -2,14 +2,14 @@
 import {
   state, subscribe, toggleFavorite, setPlaceVisited, getPhoto, setOccStatus, cancelOccurrence,
   restoreOccurrence, unscheduleEvent, deleteEvent, deleteVisit, deleteCommitment, updateSettings,
-  exportData, importData, wipeAll, db,
+  exportData, importData, wipeAll, db, deleteItem, markBackupDone,
 } from './store.js';
 import { openSheet, actionSheet, confirmDialog, alertDialog, toast, html, ic, setHTML } from './ui.js';
 import { placeThumb, catBadge, switchCell } from './widgets.js';
-import { openPlaceForm, openEventForm, openVisitForm, openCommitmentForm, openRescheduleForm } from './forms.js';
+import { openPlaceForm, openEventForm, openVisitForm, openCommitmentForm, openRescheduleForm, openItemForm } from './forms.js';
 import { moveWithConflicts } from './conflicts.js';
 import { occRow, slotsSummary, STATUS_LABEL } from './rows.js';
-import { expand, occByKey, findConflicts, KIND_LABEL } from './schedule.js';
+import { expand, occByKey, findConflicts, KIND_LABEL, FREQ_LABEL, SCOPE_LABEL } from './schedule.js';
 import { KIND_ICON } from './icons.js';
 import { haptic } from './util.js';
 import {
@@ -102,14 +102,15 @@ export function openOccurrenceSheet(key) {
 
     setHTML(ctl.body, html`
       <div class="occ-hero k-${occ.kind}">
-        <div class="occ-kind">${ic(KIND_ICON[occ.kind], 'i xs')} ${KIND_LABEL[occ.kind]}${occ.recurring ? ' · semanal' : ''}<span class="pill-status st-${occ.status}">${STATUS_LABEL[occ.status]}</span></div>
+        <div class="occ-kind">${ic(KIND_ICON[occ.kind], 'i xs')} ${occ.kind === 'item' ? 'Horário avulso' : KIND_LABEL[occ.kind]}${occ.recurring ? ` · ${(FREQ_LABEL[occ.freq] || '').toLowerCase()}` : ''}<span class="pill-status st-${occ.status}">${STATUS_LABEL[occ.status]}</span></div>
         <div class="occ-title">${occ.title}</div>
         ${occ.kind === 'event' ? html`<div class="occ-sub">${ic('pin', 'i xs')} ${occ.subtitle}</div>` : ''}
         ${occ.kind === 'visit' && occ.subtitle ? html`<div class="occ-sub">${ic('pin', 'i xs')} ${occ.subtitle}</div>` : ''}
+        ${occ.kind === 'item' && occ.subtitle ? html`<div class="occ-sub">${occ.subtitle}</div>` : ''}
         <div class="occ-when">${fmtDayLong(occ.start)}</div>
         <div class="occ-time">${fmtRange(occ.start, occ.end)} <span>· ${fmtDur(dur)}</span></div>
-        ${occ.recurring && c ? html`<div class="occ-note">${ic('repeat', 'i xs')} ${slotsSummary(c.slots)}</div>` : ''}
-        ${occ.overridden ? html`<div class="occ-note warnish">${ic('info', 'i xs')} Horário alterado só nesta semana (original: ${fmtDateShort(parseDateKey(occ.origDate).getTime())})</div>` : ''}
+        ${occ.recurring && c ? html`<div class="occ-note">${ic('repeat', 'i xs')} ${slotsSummary(c)}</div>` : ''}
+        ${occ.overridden ? html`<div class="occ-note warnish">${ic('info', 'i xs')} Horário alterado só ${SCOPE_LABEL[occ.freq] || 'desta vez'} (original: ${fmtDateShort(parseDateKey(occ.origDate).getTime())})</div>` : ''}
       </div>
       ${conflicts.length ? html`<div class="warn">${ic('alert', 'i sm')}<div><b>Sobreposto com:</b> ${conflicts.map((o) => `${o.title} (${fmtRange(o.start, o.end)})`).join(', ')}</div></div>` : ''}
       <div class="group-label">Adiar</div>
@@ -126,7 +127,7 @@ export function openOccurrenceSheet(key) {
         <button type="button" data-shift="-1440">−1 dia</button>
         <button type="button" data-act="resched" class="accent-btn">Outro…</button>
       </div>
-      <div class="group-foot qa-foot">${occ.recurring ? 'Mudanças aqui valem só para esta semana — as próximas continuam no horário de sempre.' : 'Dica: na agenda, segure um bloco e arraste para mudar o horário.'}</div>
+      <div class="group-foot qa-foot">${occ.recurring ? `Mudanças aqui valem só ${SCOPE_LABEL[occ.freq]} — as outras ocorrências continuam no horário de sempre.` : 'Dica: na agenda, segure um bloco e arraste para mudar o horário.'}</div>
       <div class="form-group">
         ${occ.overridden ? html`<button type="button" class="cell" data-act="restore"><span class="cell-ic">${ic('undo', 'i sm')}</span><span class="grow">Voltar ao horário de sempre</span></button>` : ''}
         ${statusCells.map(([v, icn, label]) => html`<button type="button" class="cell" data-status="${v}"><span class="cell-ic">${ic(icn, 'i sm')}</span><span class="grow">${label}</span></button>`)}
@@ -134,15 +135,17 @@ export function openOccurrenceSheet(key) {
       <div class="form-group">
         ${occ.kind === 'event' ? html`<button type="button" class="cell" data-act="open-event"><span class="cell-ic">${ic('pencil', 'i sm')}</span><span class="grow">Editar evento</span>${ic('chevR', 'i sm muted')}</button>` : ''}
         ${occ.kind === 'visit' ? html`<button type="button" class="cell" data-act="edit-visit"><span class="cell-ic">${ic('pencil', 'i sm')}</span><span class="grow">Editar visita</span>${ic('chevR', 'i sm muted')}</button>` : ''}
+        ${occ.kind === 'item' ? html`<button type="button" class="cell" data-act="edit-item"><span class="cell-ic">${ic('pencil', 'i sm')}</span><span class="grow">Editar título e observação</span>${ic('chevR', 'i sm muted')}</button>` : ''}
         ${occ.placeId ? html`<button type="button" class="cell" data-act="open-place"><span class="cell-ic">${ic('pin', 'i sm')}</span><span class="grow">Ver local</span>${ic('chevR', 'i sm muted')}</button>` : ''}
-        ${occ.kind === 'commitment' ? html`<button type="button" class="cell" data-act="edit-commitment"><span class="cell-ic">${ic('pencil', 'i sm')}</span><span class="grow">Editar compromisso${occ.recurring ? ' (todas as semanas)' : ''}</span>${ic('chevR', 'i sm muted')}</button>` : ''}
+        ${occ.kind === 'commitment' ? html`<button type="button" class="cell" data-act="edit-commitment"><span class="cell-ic">${ic('pencil', 'i sm')}</span><span class="grow">Editar compromisso${occ.recurring ? ' (todas as ocorrências)' : ''}</span>${ic('chevR', 'i sm muted')}</button>` : ''}
       </div>
       <div class="form-group">
-        ${occ.recurring ? html`<button type="button" class="cell danger" data-act="cancel-occ"><span class="cell-ic">${ic('ban', 'i sm')}</span><span class="grow">Cancelar só nesta semana</span></button>` : ''}
+        ${occ.recurring ? html`<button type="button" class="cell danger" data-act="cancel-occ"><span class="cell-ic">${ic('ban', 'i sm')}</span><span class="grow">Cancelar só ${SCOPE_LABEL[occ.freq]}</span></button>` : ''}
         ${occ.kind === 'commitment' && !occ.recurring ? html`<button type="button" class="cell danger" data-act="delete-commitment"><span class="cell-ic">${ic('trash', 'i sm')}</span><span class="grow">Excluir compromisso</span></button>` : ''}
         ${occ.kind === 'event' ? html`<button type="button" class="cell danger" data-act="unschedule"><span class="cell-ic">${ic('calendar', 'i sm')}</span><span class="grow">Tirar da agenda (manter evento)</span></button>
           <button type="button" class="cell danger" data-act="delete-event"><span class="cell-ic">${ic('trash', 'i sm')}</span><span class="grow">Excluir evento</span></button>` : ''}
         ${occ.kind === 'visit' ? html`<button type="button" class="cell danger" data-act="delete-visit"><span class="cell-ic">${ic('trash', 'i sm')}</span><span class="grow">Excluir visita</span></button>` : ''}
+        ${occ.kind === 'item' ? html`<button type="button" class="cell danger" data-act="delete-item"><span class="cell-ic">${ic('trash', 'i sm')}</span><span class="grow">Excluir da agenda</span></button>` : ''}
       </div>`);
   };
   render();
@@ -177,10 +180,11 @@ export function openOccurrenceSheet(key) {
       case 'restore': await restoreOccurrence(occ); toast('Horário original restaurado', { icon: 'undo' }); break;
       case 'open-event': openEventForm({ id: occ.refId }); break;
       case 'edit-visit': openVisitForm({ id: occ.refId }); break;
+      case 'edit-item': openItemForm({ id: occ.refId }); break;
       case 'open-place': openPlaceDetail(occ.placeId); break;
       case 'edit-commitment': openCommitmentForm({ id: occ.refId }); break;
       case 'cancel-occ': {
-        const ok = await confirmDialog({ title: 'Cancelar só nesta semana?', message: `“${occ.title}” de ${dayLabel(occ.start)} sai da agenda. As outras semanas continuam.`, ok: 'Cancelar ocorrência', cancel: 'Voltar', destructive: true });
+        const ok = await confirmDialog({ title: `Cancelar só ${SCOPE_LABEL[occ.freq]}?`, message: `“${occ.title}” de ${dayLabel(occ.start)} sai da agenda. As outras ocorrências continuam.`, ok: 'Cancelar ocorrência', cancel: 'Voltar', destructive: true });
         if (ok) { await cancelOccurrence(occ); toast('Ocorrência cancelada', { icon: 'ban' }); ctl.close(); }
         break;
       }
@@ -193,6 +197,11 @@ export function openOccurrenceSheet(key) {
       case 'delete-event': {
         const ok = await confirmDialog({ title: `Excluir “${occ.title}”?`, message: 'O histórico é mantido.', ok: 'Excluir', destructive: true });
         if (ok) { await deleteEvent(occ.refId); toast('Evento excluído', { icon: 'trash' }); ctl.close(); }
+        break;
+      }
+      case 'delete-item': {
+        const ok = await confirmDialog({ title: `Excluir “${occ.title}”?`, message: 'O histórico é mantido.', ok: 'Excluir', destructive: true });
+        if (ok) { await deleteItem(occ.refId); toast('Excluído da agenda', { icon: 'trash' }); ctl.close(); }
         break;
       }
       case 'delete-visit': {
@@ -213,11 +222,13 @@ export async function openAddChooser(start) {
     title: 'Adicionar à agenda',
     message: start ? `${dayLabel(start)}, ${fmtHM(start)}` : undefined,
     actions: [
+      { label: 'Horário avulso (só título)', value: 'item', icon: 'note' },
       { label: 'Evento', value: 'event', icon: 'ticket' },
       { label: 'Local (visita)', value: 'visit', icon: 'pin' },
       { label: 'Compromisso', value: 'commitment', icon: 'repeat' },
     ],
   });
+  if (v === 'item') return openItemForm({ prefill: { start } });
   if (v === 'event') return openEventForm({ prefill: { start }, requireSchedule: true });
   if (v === 'visit') return openVisitForm({ prefill: { start } });
   if (v === 'commitment') return openCommitmentForm({ prefill: { start } });
@@ -233,18 +244,34 @@ const POLICIES = [
   ['overlap', 'Permitir sobreposição', 'Salva os dois e só avisa na agenda'],
 ];
 
-async function doExport() {
+/** gera o arquivo de backup e abre a folha de compartilhar (Salvar em Arquivos). Retorna true se exportou. */
+export async function doExport() {
   const data = await exportData();
   const name = `agentonator-backup-${dateKey(Date.now())}.json`;
   const file = new File([JSON.stringify(data)], name, { type: 'application/json' });
   if (navigator.canShare?.({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: 'Backup do Agentonator' }); return; } catch (e) { if (e?.name === 'AbortError') return; }
+    try {
+      await navigator.share({ files: [file], title: 'Backup do Agentonator' });
+      await markBackupDone();
+      toast('Backup exportado', { icon: 'check' });
+      return true;
+    } catch (e) { if (e?.name === 'AbortError') return false; }
   }
   const url = URL.createObjectURL(file);
   const a = document.createElement('a');
   a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  await markBackupDone();
+  toast('Backup exportado', { icon: 'check' });
+  return true;
+}
+
+export function backupAgeLabel(now = Date.now()) {
+  const t = state.settings.lastBackupAt;
+  if (!t) return 'Nenhum backup feito ainda';
+  const days = Math.floor((now - t) / DAY);
+  return `Último backup: ${days === 0 ? 'hoje' : days === 1 ? 'ontem' : `há ${days} dias`}`;
 }
 
 export function openSettings() {
@@ -252,7 +279,7 @@ export function openSettings() {
   let storageInfo = '';
   const render = () => {
     const s = state.settings;
-    const counts = `${state.places.length} locais · ${state.events.length} eventos · ${state.commitments.length} compromissos · ${state.history.length} no histórico`;
+    const counts = `${state.places.length} locais · ${state.events.length} eventos · ${state.commitments.length} compromissos · ${state.items.length} avulsos · ${state.history.length} no histórico`;
     setHTML(ctl.body, html`<form class="form" onsubmit="return false">
       <div class="group-label">Conflitos de horário</div>
       <div class="form-group">${POLICIES.map(([v, label, hint]) => html`<button type="button" class="cell radio" data-policy="${v}"><span class="grow"><span class="cell-title">${label}</span><span class="cell-hint">${hint}</span></span>${s.conflictPolicy === v ? ic('check', 'i accent') : ''}</button>`)}</div>
@@ -268,7 +295,7 @@ export function openSettings() {
       <div class="group-label">Seus dados</div>
       <div class="form-group">
         <div class="cell"><span class="cell-ic">${ic('shield', 'i sm')}</span><span class="grow"><span class="cell-title">Salvo neste iPhone</span><span class="cell-hint">${counts}${storageInfo ? html`<br>${storageInfo}` : ''}</span></span></div>
-        <button type="button" class="cell" data-act="export"><span class="cell-ic">${ic('upload', 'i sm')}</span><span class="grow">Exportar backup</span></button>
+        <button type="button" class="cell" data-act="export"><span class="cell-ic">${ic('upload', 'i sm')}</span><span class="grow"><span class="cell-title">Exportar backup</span><span class="cell-hint">${backupAgeLabel()}</span></span></button>
         <button type="button" class="cell" data-act="import"><span class="cell-ic">${ic('download', 'i sm')}</span><span class="grow">Restaurar backup</span></button>
         <input type="file" accept="application/json,.json" data-ref="importFile" hidden>
       </div>

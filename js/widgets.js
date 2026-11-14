@@ -129,7 +129,7 @@ export function bindFormWidgets(root) {
       let on;
       if (!input) on = false;
       else if (input.type === 'checkbox') on = input.checked;
-      else on = String(input.value) === String(val);
+      else on = String(val).split('|').includes(String(input.value));
       el.hidden = !on;
     });
   };

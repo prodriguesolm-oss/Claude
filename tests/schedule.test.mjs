@@ -172,3 +172,48 @@ test('dateKey/atMinutes são consistentes no fuso local', () => {
   assert.equal(dateKey(atMinutes(MON, 23 * 60 + 59)), MON);
   assert.equal(atMinutes(MON, 90) - atMinutes(MON, 0), 90 * MIN);
 });
+
+// ---------- recorrência diária / mensal e horário avulso ----------
+import { slotMatches, itemOcc, FREQ_LABEL } from '../js/schedule.js';
+
+test('compromisso diário aparece todo dia (e respeita data final)', () => {
+  const c = { id: 'd1', name: 'Remédio', kind: 'daily', slots: [{ id: 'x', startMin: 8 * 60, endMin: 8 * 60 + 15 }], startDate: MON, untilDate: '2026-11-20', overrides: {}, createdAt: 0 };
+  const occs = commitmentOccs(c, T(MON, '00:00'), addDays(T(MON, '00:00'), 10), 0);
+  assert.equal(occs.length, 5); // seg a sex
+  assert.equal(occs[0].subtitle, FREQ_LABEL.daily);
+});
+
+test('compromisso mensal: dia 31 cai no último dia em meses curtos', () => {
+  const c = { id: 'm1', name: 'Aluguel', kind: 'monthly', slots: [{ id: 'y', monthDays: [31], startMin: 9 * 60, endMin: 10 * 60 }], startDate: '2026-01-01', overrides: {}, createdAt: 0 };
+  assert.equal(slotMatches(c, c.slots[0], '2027-02-28'), true);
+  assert.equal(slotMatches(c, c.slots[0], '2026-11-30'), true);
+  assert.equal(slotMatches(c, c.slots[0], '2026-12-31'), true);
+  assert.equal(slotMatches(c, c.slots[0], '2026-12-30'), false);
+  const occs = commitmentOccs(c, T('2026-11-01', '00:00'), T('2027-03-01', '00:00'), 0);
+  assert.deepEqual(occs.map((o) => dateKey(o.start)), ['2026-11-30', '2026-12-31', '2027-01-31', '2027-02-28']);
+});
+
+test('adiar uma ocorrência mensal não mexe nos outros meses', () => {
+  const s = emptyState();
+  s.commitments.push({ id: 'm2', name: 'Reunião', kind: 'monthly', slots: [{ id: 'z', monthDays: [5], startMin: 14 * 60, endMin: 15 * 60 }], startDate: '2026-11-01', overrides: {}, createdAt: 0 });
+  const occ = occByKey(s, 'commitment:m2:z|2026-12-05', 0);
+  s.commitments[0] = applyMove(s, occ, occ.start + DAY, occ.end + DAY, 0).value;
+  const dec = expand(s, T('2026-12-01', '00:00'), T('2027-01-01', '00:00'), 0);
+  const jan = expand(s, T('2027-01-01', '00:00'), T('2027-02-01', '00:00'), 0);
+  assert.equal(dateKey(dec[0].start), '2026-12-06');
+  assert.equal(dateKey(jan[0].start), '2027-01-05');
+});
+
+test('horário avulso entra na agenda, pode ser movido e é concluído automaticamente', () => {
+  const s = emptyState();
+  s.items = [{ id: 'i1', title: 'Shopping Leblon — comprar roupa', start: T(MON, '15:00'), end: T(MON, '17:00'), status: 'planned' }];
+  const occs = expand(s, T(MON, '00:00'), T(TUE, '00:00'), T(MON, '08:00'));
+  assert.equal(occs.length, 1);
+  assert.equal(occs[0].kind, 'item');
+  const moved = applyMove(s, occs[0], T(MON, '16:00'), T(MON, '18:00'), 0);
+  assert.equal(moved.store, 'items');
+  const r = sweep(s, T(MON, '20:00'), T(MON, '08:00'));
+  assert.deepEqual(r.items.map((i) => i.status), ['done']);
+  assert.equal(r.history[0].id, 'h:item:i1');
+  assert.equal(itemOcc(s.items[0], 0).title, 'Shopping Leblon — comprar roupa');
+});

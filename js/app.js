@@ -1,6 +1,6 @@
 // Ponto de entrada: monta a estrutura, abas, inicia o armazenamento e a varredura periódica.
 import { init, subscribe, runSweep } from './store.js';
-import { html, ic, setHTML, overlayCount } from './ui.js';
+import { html, ic, setHTML, overlayCount, alertDialog } from './ui.js';
 import { createAgendaView } from './views/agenda.js';
 import {
   createPlacesView, createEventsView, createCommitmentsView, createFavoritesView, createHistoryView,
@@ -98,6 +98,18 @@ function fatal(err) {
     <button type="button" class="btn primary" onclick="location.reload()">Tentar novamente</button>
   </div>`);
 }
+
+// Se alguma gravação falhar fora de um formulário (ex.: favoritar), avisa em vez de falhar em silêncio.
+let lastErrorAt = 0;
+window.addEventListener('unhandledrejection', (e) => {
+  console.error(e.reason);
+  if (Date.now() - lastErrorAt < 3000) return;
+  lastErrorAt = Date.now();
+  alertDialog({
+    title: 'Não foi possível concluir',
+    message: `A última ação não foi gravada. O que já estava salvo continua salvo.\n\nDetalhe: ${e.reason?.message || e.reason}`,
+  });
+});
 
 async function boot() {
   shell();

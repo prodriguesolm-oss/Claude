@@ -39,23 +39,25 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
 
 | Aba | Para quê |
 |---|---|
-| **Agenda** | A principal. Junta eventos, visitas a locais e compromissos numa linha do tempo do dia (ou lista das próximas 3 semanas). |
+| **Agenda** | A principal. Junta horários avulsos, eventos, visitas a locais e compromissos numa linha do tempo do dia (ou lista das próximas 3 semanas). |
 | **Locais** | Cadastro de lugares com nome, endereço, foto e classificação. Busca por nome, filtros, ★ favorito e ✓ visitado direto na lista. |
 | **Eventos** | Eventos sempre ligados a um local cadastrado, com data/hora opcional, classificação e favorito. |
-| **Compromissos** | Rotina semanal (vários dias e horários) ou compromissos únicos. |
-| **Favoritos** | Tudo que tem ★, com filtro por Locais / Eventos / Compromissos. |
+| **Compromissos** | Lista da sua rotina, agrupada por frequência: **diário**, **semanal**, **mensal** ou **único**. |
+| **Favoritos** | Locais e eventos marcados com ★, com filtro por tipo. |
 | **Histórico** | Tudo que já foi feito, com data e horário. |
 
 ### Agenda
-- **+** adiciona **Evento**, **Local (visita)** ou **Compromisso**. Tocar num horário vazio da linha do tempo
-  já abre o menu com aquele horário.
+- **+** adiciona **Horário avulso** (só título e hora — ex.: "Shopping Leblon, comprar roupa", sem cadastrar
+  local nem compromisso), **Evento**, **Local (visita)** ou **Compromisso**. Tocar num horário vazio da linha do
+  tempo já abre o menu com aquele horário.
 - **Tocar num bloco** abre a ficha: adiar (+15 min, +1 h, +1 dia, +1 semana), antecipar, escolher outro horário,
   marcar como feito / "não aconteceu", cancelar só aquela semana, editar.
 - **Segurar e arrastar** um bloco muda o horário (de 15 em 15 minutos).
 - **Deslizar para os lados** troca de dia (na faixa da semana, troca de semana). Tocar no mês abre o calendário.
-- **Compromissos semanais**: alterar uma ocorrência (ex.: adiar a terapia de amanhã em 24 h) vale **só para
-  aquela semana**. As semanas seguintes continuam no horário de sempre, e nenhum compromisso duplicado é criado.
-  Dá para "voltar ao horário de sempre" a qualquer momento.
+- **Compromissos recorrentes** (diários, semanais, mensais): alterar uma ocorrência (ex.: adiar a terapia de
+  amanhã em 24 h) vale **só para aquela vez**. As outras continuam no horário de sempre, e nenhum compromisso
+  duplicado é criado. Dá para "voltar ao horário de sempre" a qualquer momento.
+- **Mensais** usam o dia do mês (ex.: dia 5). Dias 29–31 caem no último dia nos meses mais curtos.
 - **Conflitos de horário**: quando algo novo cai em cima de um horário ocupado, o app avisa e oferece
   *adiar o que já estava marcado* (em cascata), *colocar o novo depois* ou *manter sobreposto*. Em **Ajustes**
   você define um comportamento padrão. Blocos sobrepostos ficam listrados com ⚠.
@@ -75,10 +77,20 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
   pela metade e o app avisa.
 - Há uma **cópia de segurança local** (sem as fotos) que restaura os dados automaticamente se o banco principal
   for perdido.
-- O app pede ao iOS armazenamento **persistente** (não apagar em caso de pouco espaço). Apps adicionados à Tela
-  de Início não sofrem a limpeza automática de 7 dias do Safari.
+- O app pede ao iOS armazenamento **persistente** (não apagar em caso de pouco espaço). Em Ajustes aparece
+  "armazenamento protegido ✓" quando o iOS concede. Apps adicionados à Tela de Início não sofrem a limpeza
+  automática de 7 dias do Safari.
+- Atualizações do app nunca apagam dados: o banco só ganha o que falta (testado da versão 1 para a 2).
 - **Backup**: Agenda → ⚙︎ (Ajustes) → **Exportar backup** gera um arquivo `.json` (com fotos) que você salva no
-  app Arquivos / iCloud Drive. **Restaurar backup** recupera tudo — útil ao trocar de iPhone.
+  app Arquivos / iCloud Drive. **Restaurar backup** recupera tudo — útil ao trocar de iPhone. O app lembra de
+  fazer backup a cada 2 semanas.
+
+**Limites honestos** (o que pode apagar os dados):
+- Perder, trocar ou resetar o iPhone sem ter um backup — os dados não vão para a nuvem.
+- Apagar o ícone do app da Tela de Início: a Apple não documenta claramente se os dados vão junto; trate como
+  se fossem e exporte um backup antes.
+- Usar pelo Safari em vez do ícone (os dados ficam em lugares separados).
+- Mudar o endereço do app (renomear o repositório ou desligar o GitHub Pages).
 
 ---
 

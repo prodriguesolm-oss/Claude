@@ -1,6 +1,6 @@
 // Service worker: deixa o app funcionando offline e abrindo instantaneamente.
 // Estratégia: responde do cache e atualiza em segundo plano (stale-while-revalidate).
-const VERSION = 'agentonator-v1';
+const VERSION = 'agentonator-v2';
 const ASSETS = [
   './',
   'index.html',
@@ -30,7 +30,12 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(VERSION).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // cache: 'reload' ignora o cache HTTP do navegador -> a nova versão é baixada inteira e consistente
+  event.waitUntil(
+    caches.open(VERSION)
+      .then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' }))))
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -47,7 +52,9 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  const network = fetch(req)
+  // revalida com o servidor (ignora o cache HTTP); navegação precisa de um Request novo
+  const netReq = req.mode === 'navigate' ? new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' }) : new Request(req, { cache: 'no-cache' });
+  const network = fetch(netReq)
     .then(async (res) => {
       if (res && res.ok) {
         const cache = await caches.open(VERSION);

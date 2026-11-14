@@ -36,6 +36,7 @@ const P = {
   shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
   sparkle: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
   list: '<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
+  note: '<path d="M5 3.5h14a1.5 1.5 0 0 1 1.5 1.5v10l-5.5 5.5H5A1.5 1.5 0 0 1 3.5 19V5A1.5 1.5 0 0 1 5 3.5Z"/><path d="M14.5 20.5V16a1 1 0 0 1 1-1h5M8 8.5h8M8 12h5"/>',
   grip: '<path d="M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01"/>',
 };
 
@@ -43,4 +44,4 @@ export function icon(name, cls = 'i', filled = false) {
   return `<svg class="${cls}${filled ? ' fill' : ''}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${P[name] || ''}</svg>`;
 }
 
-export const KIND_ICON = { event: 'ticket', visit: 'pin', place: 'pin', commitment: 'repeat' };
+export const KIND_ICON = { event: 'ticket', visit: 'pin', place: 'pin', commitment: 'repeat', item: 'note' };

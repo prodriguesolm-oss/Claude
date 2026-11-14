@@ -4,7 +4,7 @@ import { html, ic, actionSheet, toast, confirmDialog } from '../ui.js';
 import { emptyState } from '../widgets.js';
 import { createListView } from './listview.js';
 import { placeRow, eventRow, commitmentRow, upcomingByPlace } from '../rows.js';
-import { openPlaceForm, openEventForm, openCommitmentForm } from '../forms.js';
+import { openPlaceForm, openEventForm, openCommitmentForm, openItemForm } from '../forms.js';
 import { openPlaceDetail, openOccurrenceSheet } from '../sheets.js';
 import { occByKey, KIND_LABEL } from '../schedule.js';
 import { KIND_ICON } from '../icons.js';
@@ -126,28 +126,32 @@ export const createCommitmentsView = () => createListView({
   subtitle: () => plural(state.commitments.length, 'compromisso', 'compromissos'),
   filters: () => {
     const C = state.commitments;
+    const n = (k) => C.filter((c) => c.kind === k).length;
     return [
       ['all', 'Todos', C.length],
-      ['weekly', 'Semanais', C.filter((c) => c.kind === 'weekly').length],
-      ['once', 'Únicos', C.filter((c) => c.kind === 'once').length],
-      ['fav', 'Favoritos', C.filter((c) => c.favorite).length],
+      ['daily', 'Diários', n('daily')],
+      ['weekly', 'Semanais', n('weekly')],
+      ['monthly', 'Mensais', n('monthly')],
+      ['once', 'Únicos', n('once')],
     ];
   },
   renderList: ({ q, filter }) => {
     if (!state.commitments.length) {
-      return emptyState({ icon: 'repeat', title: 'Nenhum compromisso ainda', text: 'Cadastre sua rotina semanal (ex.: terapia seg 10h e qui 9h, trabalho seg a sex) ou compromissos únicos.', actionLabel: 'Novo compromisso' });
+      return emptyState({ icon: 'repeat', title: 'Nenhum compromisso ainda', text: 'Cadastre sua rotina: diária (remédio, academia), semanal (terapia seg 10h e qui 9h), mensal (aluguel dia 5) ou compromissos únicos.', actionLabel: 'Novo compromisso' });
     }
     const now = Date.now();
-    const pass = { all: () => true, weekly: (c) => c.kind === 'weekly', once: (c) => c.kind === 'once', fav: (c) => c.favorite }[filter] || (() => true);
-    const list = state.commitments.filter(pass).filter((c) => matchScore(q, c.name) > 0);
+    const list = state.commitments.filter((c) => filter === 'all' || c.kind === filter).filter((c) => matchScore(q, c.name) > 0);
     if (!list.length) return noResults(q);
-    const weekly = list.filter((c) => c.kind === 'weekly').sort(byName);
-    const onceNext = list.filter((c) => c.kind === 'once' && c.end > now).sort((a, b) => a.start - b.start);
-    const oncePast = list.filter((c) => c.kind === 'once' && !(c.end > now)).sort((a, b) => (b.start || 0) - (a.start || 0));
-    return html`
-      ${weekly.length ? section('Rotina semanal', weekly.map((c) => commitmentRow(c, now)), weekly.length) : ''}
-      ${onceNext.length ? section('Únicos — próximos', onceNext.map((c) => commitmentRow(c, now)), onceNext.length) : ''}
-      ${oncePast.length ? section('Únicos — passados', oncePast.map((c) => commitmentRow(c, now)), oncePast.length) : ''}`;
+    const firstMin = (c) => Math.min(...(c.slots || []).map((s) => s.startMin), 1440);
+    const byTime = (a, b) => firstMin(a) - firstMin(b) || byName(a, b);
+    const groups = [
+      ['Diários', list.filter((c) => c.kind === 'daily').sort(byTime)],
+      ['Semanais', list.filter((c) => c.kind === 'weekly').sort(byTime)],
+      ['Mensais', list.filter((c) => c.kind === 'monthly').sort(byTime)],
+      ['Únicos — próximos', list.filter((c) => c.kind === 'once' && c.end > now).sort((a, b) => a.start - b.start)],
+      ['Únicos — passados', list.filter((c) => c.kind === 'once' && !(c.end > now)).sort((a, b) => (b.start || 0) - (a.start || 0))],
+    ];
+    return html`${groups.filter(([, l]) => l.length).map(([title, l]) => section(title, l.map((c) => commitmentRow(c, now)), l.length))}`;
   },
 });
 
@@ -159,14 +163,13 @@ export const createFavoritesView = () => createListView({
   placeholder: 'Buscar nos favoritos',
   initialFilter: 'all',
   subtitle: () => {
-    const n = state.places.filter((p) => p.favorite).length + state.events.filter((e) => e.favorite).length + state.commitments.filter((c) => c.favorite).length;
+    const n = state.places.filter((p) => p.favorite).length + state.events.filter((e) => e.favorite).length;
     return plural(n, 'favorito', 'favoritos');
   },
   filters: () => [
     ['all', 'Todos'],
     ['place', 'Locais', state.places.filter((p) => p.favorite).length],
     ['event', 'Eventos', state.events.filter((e) => e.favorite).length],
-    ['commitment', 'Compromissos', state.commitments.filter((c) => c.favorite).length],
   ],
   renderList: ({ q, filter }) => {
     const now = Date.now();
@@ -174,28 +177,25 @@ export const createFavoritesView = () => createListView({
       ? filterAndRank(state.places.filter((p) => p.favorite), q, (p) => [p.name, p.address], byName) : [];
     const events = filter === 'all' || filter === 'event'
       ? filterAndRank(state.events.filter((e) => e.favorite), q, (e) => [e.name, placeName(e.placeId)], (a, b) => (a.start ?? Infinity) - (b.start ?? Infinity)) : [];
-    const comms = filter === 'all' || filter === 'commitment'
-      ? filterAndRank(state.commitments.filter((c) => c.favorite), q, (c) => [c.name], byName) : [];
-    if (!places.length && !events.length && !comms.length) {
-      const any = state.places.some((p) => p.favorite) || state.events.some((e) => e.favorite) || state.commitments.some((c) => c.favorite);
+    if (!places.length && !events.length) {
+      const any = state.places.some((p) => p.favorite) || state.events.some((e) => e.favorite);
       if (any) return noResults(q);
-      return html`<div class="empty"><div class="empty-ic star">${ic('star', 'i xl')}</div><div class="empty-title">Nenhum favorito ainda</div><div class="empty-text">Toque na estrela ☆ ao lado de um local, evento ou compromisso para salvá-lo aqui.</div></div>`;
+      return html`<div class="empty"><div class="empty-ic star">${ic('star', 'i xl')}</div><div class="empty-title">Nenhum favorito ainda</div><div class="empty-text">Toque na estrela ☆ ao lado de um local ou evento para salvá-lo aqui.</div></div>`;
     }
     const up = upcomingByPlace(now);
     return html`
       ${places.length ? section('Locais', places.map((p) => placeRow(p, up.get(p.id))), places.length) : ''}
-      ${events.length ? section('Eventos', events.map((e) => eventRow(e, now)), events.length) : ''}
-      ${comms.length ? section('Compromissos', comms.map((c) => commitmentRow(c, now)), comms.length) : ''}`;
+      ${events.length ? section('Eventos', events.map((e) => eventRow(e, now)), events.length) : ''}`;
   },
 });
 
 // ---------- Histórico ----------
 
-const HIST_GROUP = { place: 'place', visit: 'place', event: 'event', commitment: 'commitment' };
+const HIST_GROUP = { place: 'place', visit: 'place', event: 'event', commitment: 'commitment', item: 'item' };
 
 function histRow(h, now) {
   const when = h.start != null ? fmtRange(h.start, h.end) : `marcado às ${fmtHM(h.at)}`;
-  const kindTxt = h.kind === 'place' ? 'Local visitado' : h.kind === 'visit' ? 'Visita a local' : KIND_LABEL[h.kind];
+  const kindTxt = h.kind === 'place' ? 'Local visitado' : h.kind === 'visit' ? 'Visita a local' : h.kind === 'item' ? 'Horário avulso' : KIND_LABEL[h.kind];
   return html`<button type="button" class="row hrow" data-hid="${h.id}">
     <span class="kicon k-${h.kind === 'place' ? 'visit' : h.kind}">${ic(KIND_ICON[h.kind], 'i sm')}</span>
     <div class="row-main">
@@ -229,6 +229,7 @@ export const createHistoryView = () => createListView({
       ['place', 'Locais', H.filter((h) => HIST_GROUP[h.kind] === 'place').length],
       ['event', 'Eventos', H.filter((h) => h.kind === 'event').length],
       ['commitment', 'Compromissos', H.filter((h) => h.kind === 'commitment').length],
+      ['item', 'Avulsos', H.filter((h) => h.kind === 'item').length],
     ];
   },
   renderList: ({ q, filter }) => {
@@ -266,12 +267,14 @@ async function openHistoryEntry(id) {
   if (h.placeId && state.places.some((p) => p.id === h.placeId)) actions.push({ label: 'Ver local', value: 'place', icon: 'pin' });
   if (occ) actions.push({ label: 'Abrir na agenda', value: 'occ', icon: 'calendar' });
   if (h.kind === 'event' && state.events.some((e) => e.id === h.refId)) actions.push({ label: 'Editar evento', value: 'event', icon: 'pencil' });
+  if (h.kind === 'item' && state.items.some((i) => i.id === h.refId)) actions.push({ label: 'Editar horário', value: 'item', icon: 'pencil' });
   actions.push({ label: occ ? 'Não aconteceu (remover)' : 'Remover do histórico', value: 'remove', icon: 'trash', style: 'destructive' });
   const when = h.start != null ? `${dayLabel(h.start)} · ${fmtRange(h.start, h.end)}` : `Marcado em ${fmtDateShort(h.at)} às ${fmtHM(h.at)}`;
   const v = await actionSheet({ title: h.title, message: `${when} · ${h.source === 'manual' ? 'registrado manualmente' : 'concluído automaticamente'}`, actions });
   if (v === 'place') openPlaceDetail(h.placeId);
   if (v === 'occ') openOccurrenceSheet(occKey);
   if (v === 'event') openEventForm({ id: h.refId });
+  if (v === 'item') openItemForm({ id: h.refId });
   if (v === 'remove') {
     const ok = await confirmDialog({ title: 'Remover do histórico?', message: occ ? 'O item fica marcado como “não aconteceu”.' : h.kind === 'place' ? 'O local volta a ficar como “não visitado”.' : 'O registro será apagado.', ok: 'Remover', destructive: true });
     if (!ok) return;

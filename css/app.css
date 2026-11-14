@@ -491,3 +491,30 @@ b { font-weight: 600; }
   .seg.mini { width: 100px; }
   .qa button { font-size: 13px; }
 }
+
+/* ---------- v2: horário avulso, compromissos em lista, backup ---------- */
+.k-item { --kc: #ff6482; --kbg: rgba(255, 100, 130, .2); }
+.tl-b.k-item { background: rgba(255, 100, 130, .28); }
+
+.crow { min-height: 62px; padding-left: 0; gap: 10px; }
+.crow + .crow::before { left: 70px; }
+.crow-bar { align-self: stretch; width: 4px; border-radius: 0 3px 3px 0; flex: none; background: var(--blue); }
+.crow-bar.f-daily { background: var(--teal); }
+.crow-bar.f-weekly { background: var(--blue); }
+.crow-bar.f-monthly { background: var(--purple); }
+.crow-bar.f-once { background: var(--orange); }
+.crow .row-sub { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.crow-next { flex: none; display: flex; flex-direction: column; align-items: flex-end; font-size: 13px; color: var(--text2); text-align: right; font-variant-numeric: tabular-nums; }
+.crow-next b { color: var(--text); font-weight: 600; font-size: 14px; }
+.crow .i.muted { margin-right: 4px; }
+.crow.ended { opacity: .5; }
+
+.slots[data-kind="daily"] .only-weekly, .slots[data-kind="daily"] .only-monthly,
+.slots[data-kind="weekly"] .only-monthly, .slots[data-kind="monthly"] .only-weekly { display: none; }
+.slots[data-kind="daily"] .slot-times { margin-top: 0; }
+.slot-mdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.mchip { height: 34px; font-variant-numeric: tabular-nums; }
+.dchip.on.mchip { background: var(--purple); }
+.slot-foot { margin-top: 8px; }
+
+.hint-actions { display: flex; gap: 8px; margin-top: 10px; }

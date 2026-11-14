@@ -4,9 +4,9 @@ import { state, updateSettings } from '../store.js';
 import { html, ic, setHTML, $, toast } from '../ui.js';
 import { fab } from '../widgets.js';
 import { occRow } from '../rows.js';
-import { openOccurrenceSheet, openAddChooser, openSettings } from '../sheets.js';
+import { openOccurrenceSheet, openAddChooser, openSettings, doExport } from '../sheets.js';
 import { moveWithConflicts } from '../conflicts.js';
-import { expand, occByKey, layoutColumns } from '../schedule.js';
+import { expand, occByKey, layoutColumns, FREQ_LABEL } from '../schedule.js';
 import { haptic, isIOS, isStandalone } from '../util.js';
 import {
   MIN, startOfDay, addDays, startOfWeek, dateKey, parseDateKey, atMinutes, fmtDayLong, fmtRange, fmtHM,
@@ -90,6 +90,8 @@ export function createAgendaView() {
       case 'add': openAddChooser(defaultStartFor(selected)); return;
       case 'dismiss-hint': await updateSettings({ installHintDismissed: true }); return;
       case 'dismiss-restored': state.restoredFromMirror = false; renderHint(); return;
+      case 'backup-now': await doExport(); return;
+      case 'backup-later': await updateSettings({ backupSnoozeUntil: Date.now() + 7 * 24 * 3600e3 }); return;
       default: break;
     }
     // toque num horário vazio da linha do tempo -> adicionar naquele horário
@@ -165,6 +167,19 @@ export function createAgendaView() {
     if (state.restoredFromMirror) {
       parts.push(html`<div class="hint-card ok"><div class="hint-ic">${ic('shield', 'i')}</div><div class="hint-txt">Seus dados foram recuperados da cópia de segurança local.</div><button type="button" class="hint-x" data-act="dismiss-restored" aria-label="Fechar aviso">${ic('x', 'i sm')}</button></div>`);
     }
+    // lembrete de backup: só depois de já haver bastante coisa cadastrada
+    const st = state.settings;
+    const total = state.places.length + state.events.length + state.commitments.length + state.items.length;
+    const now = Date.now();
+    const stale = !st.lastBackupAt || now - st.lastBackupAt > 14 * 24 * 3600e3;
+    if (!parts.length && total >= 8 && stale && now > (st.backupSnoozeUntil || 0)) {
+      parts.push(html`<div class="hint-card">
+        <div class="hint-ic">${ic('shield', 'i')}</div>
+        <div class="hint-txt"><b>Hora de um backup.</b> ${st.lastBackupAt ? 'Faz mais de 2 semanas desde o último.' : 'Você ainda não fez nenhum.'} Seus dados ficam só neste iPhone — guarde uma cópia no app Arquivos / iCloud Drive.
+          <div class="hint-actions"><button type="button" class="btn tinted sm" data-act="backup-now">Fazer backup</button><button type="button" class="btn plain sm" data-act="backup-later">Depois</button></div>
+        </div>
+      </div>`);
+    }
     setHTML(els.hint, html`${parts}`);
   }
 
@@ -204,7 +219,7 @@ export function createAgendaView() {
       const compact = h < 44;
       const left = `calc(var(--tl-l) + (100% - var(--tl-l) - 8px) * ${it.col / it.cols})`;
       const width = `calc((100% - var(--tl-l) - 8px) / ${it.cols} - 3px)`;
-      const sub = o.kind === 'event' ? o.subtitle : o.kind === 'visit' ? 'Visita' : o.recurring ? 'Semanal' : '';
+      const sub = o.kind === 'event' ? o.subtitle : o.kind === 'visit' ? 'Visita' : o.kind === 'item' ? o.subtitle : o.recurring ? (FREQ_LABEL[o.freq] || '') : '';
       return html`<div class="tl-b k-${o.kind} st-${o.status} ${it.conflict ? 'conflict' : ''} ${compact ? 'compact' : ''}" data-key="${o.key}" data-start="${o.start}" style="top:${top}px;height:${h}px;left:${left};width:${width}">
         <div class="tl-b-t">${it.conflict ? ic('alert', 'i xxs warn-ic') : ''}${o.status === 'done' ? ic('check', 'i xxs') : ''}${o.title}${compact ? html`<span class="tl-b-inline"> · ${fmtHM(o.start)}</span>` : ''}</div>
         ${compact ? '' : html`<div class="tl-b-s">${fmtRange(o.start, o.end)}${sub ? ` · ${sub}` : ''}</div>`}

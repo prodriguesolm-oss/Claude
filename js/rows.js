@@ -3,7 +3,7 @@ import { html, ic, toast } from './ui.js';
 import { state, toggleFavorite, setPlaceVisited } from './store.js';
 import { placeThumb, catBadge, starBtn } from './widgets.js';
 import { dayLabel, fmtHM, fmtRange, MONTHS_SHORT, WD_CAP, fmtMin, fmtDateShort, dateKey, parseDateKey } from './time.js';
-import { nextOccurrence } from './schedule.js';
+import { nextOccurrence, FREQ_LABEL } from './schedule.js';
 import { KIND_ICON } from './icons.js';
 import { haptic } from './util.js';
 import { openPlaceDetail } from './sheets.js';
@@ -65,32 +65,52 @@ export function daysLabel(days) {
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}` : names[0] || '';
 }
 
-export function slotsSummary(slots = []) {
-  return slots.map((s) => `${daysLabel(s.days)} ${fmtMin(s.startMin)}–${fmtMin(s.endMin)}`).join(' · ');
+export function monthDaysLabel(md = []) {
+  const s = [...md].sort((a, b) => a - b);
+  if (!s.length) return '';
+  return s.length === 1 ? `Dia ${s[0]}` : `Dias ${s.slice(0, -1).join(', ')} e ${s[s.length - 1]}`;
 }
 
+/** resumo dos horários de um compromisso recorrente: "Seg e Qui 06:30–07:30 · Ter 10:00–11:00" */
+export function slotsSummary(c) {
+  const slots = c?.slots || [];
+  const t = (s) => `${fmtMin(s.startMin)}–${fmtMin(s.endMin)}`;
+  if (c.kind === 'daily') return `Todo dia · ${slots.map(t).join(', ')}`;
+  if (c.kind === 'monthly') return slots.map((s) => `${monthDaysLabel(s.monthDays)} · ${t(s)}`).join(' | ');
+  return slots.map((s) => `${daysLabel(s.days || [])} ${t(s)}`).join(' · ');
+}
+
+/** linha de compromisso: lista compacta (horário · nome · resumo · quando é o próximo) */
 export function commitmentRow(c, now = Date.now()) {
   const once = c.kind === 'once';
-  const summary = once ? (c.start != null ? `${dayLabel(c.start, now)} · ${fmtRange(c.start, c.end)}` : '—') : slotsSummary(c.slots);
-  const next = once ? null : nextOccurrence(c, now);
-  const ended = !once && c.untilDate && c.untilDate < dateKey(now);
-  return html`<div class="row" data-act="open-commitment" data-id="${c.id}" role="button" tabindex="0">
-    <div class="kicon k-commitment">${ic(once ? 'clock' : 'repeat')}</div>
+  const next = once ? (c.start != null && c.end > now ? { start: c.start, end: c.end } : null) : nextOccurrence(c, now);
+  const ended = once ? !next : (c.untilDate && c.untilDate < dateKey(now));
+  const ref = next || (once && c.start != null ? { start: c.start, end: c.end } : null) || (c.slots?.[0] ? { startMin: c.slots[0].startMin, endMin: c.slots[0].endMin } : null);
+  const tStart = ref ? (ref.start != null ? fmtHM(ref.start) : fmtMin(ref.startMin)) : '--:--';
+  const tEnd = ref ? (ref.end != null ? fmtHM(ref.end) : fmtMin(ref.endMin)) : '';
+  const summary = once ? (c.start != null ? `${dayLabel(c.start, now)} · ${fmtRange(c.start, c.end)}` : '—') : slotsSummary(c);
+  const until = !once && c.untilDate && !ended ? ` · até ${fmtDateShort(parseDateKey(c.untilDate).getTime(), now)}` : '';
+  return html`<div class="row crow ${ended ? 'ended' : ''}" data-act="open-commitment" data-id="${c.id}" role="button" tabindex="0">
+    <span class="crow-bar f-${c.kind}"></span>
+    <div class="occ-times"><b>${tStart}</b><span>${tEnd}</span></div>
     <div class="row-main">
       <div class="row-title">${c.name}</div>
-      <div class="row-sub">${summary}</div>
-      <div class="row-meta">${once ? html`<span class="badge">Único</span>` : html`<span class="badge info">Semanal</span>`}${next ? html`<span class="badge">Próximo: ${dayLabel(next.start, now)}, ${fmtHM(next.start)}</span>` : ''}${ended ? html`<span class="badge">Encerrado</span>` : ''}${c.untilDate && !ended ? html`<span class="badge">até ${fmtDateShort(parseDateKey(c.untilDate).getTime(), now)}</span>` : ''}</div>
+      <div class="row-sub">${summary}${until}</div>
     </div>
-    ${starBtn('commitment', c)}
+    <div class="crow-next">${ended ? html`<span>Encerrado</span>` : next ? html`<b>${dayLabel(next.start, now)}</b><span>${fmtHM(next.start)}</span>` : ''}</div>
+    ${ic('chevR', 'i sm muted')}
   </div>`;
 }
 
 export function occRow(o) {
-  const sub = o.kind === 'commitment' ? (o.recurring ? 'Compromisso semanal' : 'Compromisso') : o.kind === 'event' ? o.subtitle : 'Visita ao local';
+  const sub = o.kind === 'commitment' ? (o.recurring ? `Compromisso ${(FREQ_LABEL[o.freq] || '').toLowerCase()}` : 'Compromisso')
+    : o.kind === 'event' ? o.subtitle
+      : o.kind === 'item' ? (o.subtitle ? `Avulso · ${o.subtitle}` : 'Horário avulso')
+        : 'Visita ao local';
   return html`<button type="button" class="row occ-row st-${o.status}" data-key="${o.key}">
     <span class="occ-bar k-${o.kind}"></span>
     <div class="occ-times"><b>${fmtHM(o.start)}</b><span>${fmtHM(o.end)}</span></div>
-    <div class="row-main"><div class="row-title">${o.title}</div><div class="row-sub">${ic(KIND_ICON[o.kind], 'i xs')} ${sub}${o.overridden ? ' · alterado nesta semana' : ''}</div></div>
+    <div class="row-main"><div class="row-title">${o.title}</div><div class="row-sub">${ic(KIND_ICON[o.kind], 'i xs')} ${sub}${o.overridden ? ' · alterado só desta vez' : ''}</div></div>
     ${o.status === 'done' ? ic('checkCircleFill', 'i ok') : o.status === 'missed' ? ic('ban', 'i muted') : o.status === 'ongoing' ? html`<span class="badge live">Agora</span>` : ''}
   </button>`;
 }
