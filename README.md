@@ -61,7 +61,6 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
 - **Conflitos de horário**: quando algo novo cai em cima de um horário ocupado, o app avisa e oferece
   *adiar o que já estava marcado* (em cascata), *colocar o novo depois* ou *manter sobreposto*. Em **Ajustes**
   você define um comportamento padrão. Blocos sobrepostos ficam listrados com ⚠.
-- **Sono**: faixa visual opcional (padrão 23:00–07:00), ajustável em Ajustes.
 
 ### Conclusão automática e histórico
 - Marcar um local como **visitado** (✓) registra no histórico.

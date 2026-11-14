@@ -239,8 +239,6 @@ b { font-weight: 600; }
 .tl-hour { position: absolute; left: 0; right: 0; height: 0; pointer-events: none; }
 .tl-hour::after { content: ""; position: absolute; left: var(--tl-l); right: 0; top: 0; border-top: .5px solid rgba(84, 84, 88, .45); }
 .tl-hour span { position: absolute; left: 12px; top: -8px; font-size: 12px; color: var(--text3); font-variant-numeric: tabular-nums; }
-.tl-sleep { position: absolute; left: var(--tl-l); right: 0; pointer-events: none; background: repeating-linear-gradient(135deg, rgba(142, 140, 255, .07) 0 6px, transparent 6px 14px); border-left: 2px solid rgba(142, 140, 255, .28); }
-.tl-sleep span { position: sticky; top: 0; display: inline-flex; align-items: center; gap: 4px; margin: 6px 0 0 8px; font-size: 12px; color: rgba(142, 140, 255, .75); font-weight: 600; }
 .tl-b {
   position: absolute; z-index: 2; overflow: hidden; border-radius: 9px; padding: 5px 8px 4px 9px;
   background: var(--kbg); border-left: 3.5px solid var(--kc); color: #fff; font-size: 13px; line-height: 1.25;

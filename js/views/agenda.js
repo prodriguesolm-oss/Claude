@@ -202,16 +202,6 @@ export function createAgendaView() {
     const hours = [];
     for (let h = 0; h <= 24; h++) hours.push(html`<div class="tl-hour" style="top:${h * 60 * PX}px"><span>${h < 24 ? `${pad(h)}:00` : ''}</span></div>`);
 
-    const sleep = [];
-    const s = state.settings;
-    if (s.sleepEnabled && s.sleepStart !== s.sleepEnd) {
-      const ranges = s.sleepStart > s.sleepEnd ? [[0, s.sleepEnd], [s.sleepStart, 1440]] : [[s.sleepStart, s.sleepEnd]];
-      for (const [a, b] of ranges) {
-        if (b <= a) continue;
-        sleep.push(html`<div class="tl-sleep" style="top:${a * PX}px;height:${(b - a) * PX}px"><span>${ic('moon', 'i xxs')} Sono</span></div>`);
-      }
-    }
-
     const blocks = items.map((it) => {
       const o = it.o;
       const top = y(it.s);
@@ -231,7 +221,7 @@ export function createAgendaView() {
 
     setHTML(els.body, html`
       ${occs.length ? '' : html`<div class="day-empty">${ic('sparkle', 'i sm')} Dia livre. Toque num horário ou no <b>+</b> para adicionar.</div>`}
-      <div class="tl" style="height:${total + 10}px">${hours}${sleep}${blocks}${nowLine}</div>`);
+      <div class="tl" style="height:${total + 10}px">${hours}${blocks}${nowLine}</div>`);
   }
 
   function renderList() {
@@ -265,7 +255,7 @@ export function createAgendaView() {
     if (startOfDay(now) === selected) targetMin = minutesOfDay(now) - 90;
     else {
       const first = expand(state, selected, addDays(selected, 1)).find((o) => o.start >= selected);
-      targetMin = first ? minutesOfDay(first.start) - 30 : (state.settings.sleepEnabled ? state.settings.sleepEnd : 7 * 60) - 30;
+      targetMin = first ? minutesOfDay(first.start) - 30 : 7 * 60 - 30;
     }
     targetMin = Math.max(0, Math.min(targetMin, 24 * 60));
     root.scrollTop = Math.max(0, tl.offsetTop + targetMin * PX - els.head.offsetHeight - 8);

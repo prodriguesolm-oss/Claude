@@ -283,15 +283,6 @@ export function openSettings() {
     setHTML(ctl.body, html`<form class="form" onsubmit="return false">
       <div class="group-label">Conflitos de horário</div>
       <div class="form-group">${POLICIES.map(([v, label, hint]) => html`<button type="button" class="cell radio" data-policy="${v}"><span class="grow"><span class="cell-title">${label}</span><span class="cell-hint">${hint}</span></span>${s.conflictPolicy === v ? ic('check', 'i accent') : ''}</button>`)}</div>
-      <div class="group-label">Sono</div>
-      <div class="form-group">
-        ${switchCell('sleepEnabled', 'Mostrar faixa de sono', s.sleepEnabled, 'moon')}
-        <div data-show="${s.sleepEnabled ? 1 : 0}" ${s.sleepEnabled ? '' : 'hidden'}>
-          <label class="cell"><span class="lbl grow">Dormir</span><input type="time" name="sleepStart" value="${fmtMin(s.sleepStart)}" step="900"></label>
-          <label class="cell"><span class="lbl grow">Acordar</span><input type="time" name="sleepEnd" value="${fmtMin(s.sleepEnd)}" step="900"></label>
-        </div>
-      </div>
-      <div class="group-foot">Só uma referência visual na agenda — não bloqueia horários.</div>
       <div class="group-label">Seus dados</div>
       <div class="form-group">
         <div class="cell"><span class="cell-ic">${ic('shield', 'i sm')}</span><span class="grow"><span class="cell-title">Salvo neste iPhone</span><span class="cell-hint">${counts}${storageInfo ? html`<br>${storageInfo}` : ''}</span></span></div>
@@ -315,9 +306,6 @@ export function openSettings() {
 
   ctl.body.addEventListener('change', async (e) => {
     const t = e.target;
-    if (t.name === 'sleepEnabled') await updateSettings({ sleepEnabled: t.checked });
-    if (t.name === 'sleepStart' && parseHM(t.value) != null) await updateSettings({ sleepStart: parseHM(t.value) });
-    if (t.name === 'sleepEnd' && parseHM(t.value) != null) await updateSettings({ sleepEnd: parseHM(t.value) });
     if (t.dataset.ref === 'importFile' && t.files?.[0]) {
       try {
         const data = JSON.parse(await t.files[0].text());

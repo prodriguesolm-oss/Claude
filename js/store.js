@@ -8,9 +8,6 @@ import { uid } from './util.js';
 
 export const DEFAULT_SETTINGS = {
   conflictPolicy: 'ask', // 'ask' | 'push-existing' | 'push-new' | 'overlap'
-  sleepEnabled: true,
-  sleepStart: 23 * 60,
-  sleepEnd: 7 * 60,
   installHintDismissed: false,
   lastBackupAt: null, // data do último "Exportar backup"
   backupSnoozeUntil: 0, // lembrete de backup adiado até
