@@ -1,0 +1,121 @@
+// Linhas de lista compartilhadas entre as abas + ações comuns (favoritar, visitado, abrir).
+import { html, ic, toast } from './ui.js';
+import { state, toggleFavorite, setPlaceVisited } from './store.js';
+import { placeThumb, catBadge, starBtn } from './widgets.js';
+import { dayLabel, fmtHM, fmtRange, MONTHS_SHORT, WD_CAP, fmtMin, fmtDateShort, dateKey, parseDateKey } from './time.js';
+import { nextOccurrence } from './schedule.js';
+import { KIND_ICON } from './icons.js';
+import { haptic } from './util.js';
+import { openPlaceDetail } from './sheets.js';
+import { openEventForm, openCommitmentForm } from './forms.js';
+
+export const STATUS_LABEL = { planned: 'Agendado', ongoing: 'Agora', done: 'Concluído', missed: 'Não aconteceu' };
+
+/** próximo evento/visita agendado de cada local */
+export function upcomingByPlace(now = Date.now()) {
+  const m = new Map();
+  for (const x of [...state.events, ...state.visits]) {
+    if (x.start == null || x.end <= now || x.status === 'missed' || x.status === 'done') continue;
+    const cur = m.get(x.placeId);
+    if (!cur || x.start < cur.start) m.set(x.placeId, x);
+  }
+  return m;
+}
+
+export function placeRow(p, upcoming) {
+  return html`<div class="row" data-act="open-place" data-id="${p.id}" role="button" tabindex="0">
+    ${placeThumb(p)}
+    <div class="row-main">
+      <div class="row-title">${p.name}</div>
+      ${p.address ? html`<div class="row-sub">${p.address}</div>` : ''}
+      <div class="row-meta">${catBadge(p.category)}${p.visited ? html`<span class="badge ok">${ic('check', 'i xs')} Visitado</span>` : ''}${upcoming ? html`<span class="badge info">${ic('calendar', 'i xs')} ${dayLabel(upcoming.start)} ${fmtHM(upcoming.start)}</span>` : ''}</div>
+    </div>
+    ${starBtn('place', p)}
+    <button type="button" class="tgl check ${p.visited ? 'on' : ''}" data-act="visited" data-id="${p.id}" aria-label="${p.visited ? 'Desmarcar visitado' : 'Marcar como visitado'}" aria-pressed="${p.visited ? 'true' : 'false'}">${ic(p.visited ? 'checkCircleFill' : 'checkCircle')}</button>
+  </div>`;
+}
+
+export function eventRow(e, now = Date.now()) {
+  const p = state.places.find((x) => x.id === e.placeId);
+  const sched = e.start != null;
+  const d = sched ? new Date(e.start) : null;
+  const done = e.status === 'done' || (sched && e.end <= now && e.status !== 'missed');
+  const live = sched && !done && e.start <= now && e.end > now;
+  return html`<div class="row" data-act="open-event" data-id="${e.id}" role="button" tabindex="0">
+    <div class="datebadge ${sched ? '' : 'none'} ${done ? 'done' : ''}">${sched
+      ? html`<span class="m">${MONTHS_SHORT[d.getMonth()]}</span><span class="d">${d.getDate()}</span>`
+      : html`<span class="m">sem</span><span class="d sm">data</span>`}</div>
+    <div class="row-main">
+      <div class="row-title">${e.name}</div>
+      <div class="row-sub">${ic('pin', 'i xs')} ${p?.name || 'Local removido'}</div>
+      <div class="row-meta">${sched ? html`<span class="badge">${dayLabel(e.start, now)} · ${fmtRange(e.start, e.end)}</span>` : ''}${catBadge(e.category)}${done ? html`<span class="badge ok">${ic('check', 'i xs')} Feito</span>` : ''}${e.status === 'missed' ? html`<span class="badge">Não aconteceu</span>` : ''}${live ? html`<span class="badge live">Agora</span>` : ''}</div>
+    </div>
+    ${starBtn('event', e)}
+  </div>`;
+}
+
+export function daysLabel(days) {
+  const s = [...days].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7));
+  if (s.length === 7) return 'Todos os dias';
+  const k = s.join(',');
+  if (k === '1,2,3,4,5') return 'Seg a Sex';
+  if (k === '1,2,3,4,5,6') return 'Seg a Sáb';
+  if (k === '6,0') return 'Sáb e Dom';
+  const names = s.map((d) => WD_CAP[d]);
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}` : names[0] || '';
+}
+
+export function slotsSummary(slots = []) {
+  return slots.map((s) => `${daysLabel(s.days)} ${fmtMin(s.startMin)}–${fmtMin(s.endMin)}`).join(' · ');
+}
+
+export function commitmentRow(c, now = Date.now()) {
+  const once = c.kind === 'once';
+  const summary = once ? (c.start != null ? `${dayLabel(c.start, now)} · ${fmtRange(c.start, c.end)}` : '—') : slotsSummary(c.slots);
+  const next = once ? null : nextOccurrence(c, now);
+  const ended = !once && c.untilDate && c.untilDate < dateKey(now);
+  return html`<div class="row" data-act="open-commitment" data-id="${c.id}" role="button" tabindex="0">
+    <div class="kicon k-commitment">${ic(once ? 'clock' : 'repeat')}</div>
+    <div class="row-main">
+      <div class="row-title">${c.name}</div>
+      <div class="row-sub">${summary}</div>
+      <div class="row-meta">${once ? html`<span class="badge">Único</span>` : html`<span class="badge info">Semanal</span>`}${next ? html`<span class="badge">Próximo: ${dayLabel(next.start, now)}, ${fmtHM(next.start)}</span>` : ''}${ended ? html`<span class="badge">Encerrado</span>` : ''}${c.untilDate && !ended ? html`<span class="badge">até ${fmtDateShort(parseDateKey(c.untilDate).getTime(), now)}</span>` : ''}</div>
+    </div>
+    ${starBtn('commitment', c)}
+  </div>`;
+}
+
+export function occRow(o) {
+  const sub = o.kind === 'commitment' ? (o.recurring ? 'Compromisso semanal' : 'Compromisso') : o.kind === 'event' ? o.subtitle : 'Visita ao local';
+  return html`<button type="button" class="row occ-row st-${o.status}" data-key="${o.key}">
+    <span class="occ-bar k-${o.kind}"></span>
+    <div class="occ-times"><b>${fmtHM(o.start)}</b><span>${fmtHM(o.end)}</span></div>
+    <div class="row-main"><div class="row-title">${o.title}</div><div class="row-sub">${ic(KIND_ICON[o.kind], 'i xs')} ${sub}${o.overridden ? ' · alterado nesta semana' : ''}</div></div>
+    ${o.status === 'done' ? ic('checkCircleFill', 'i ok') : o.status === 'missed' ? ic('ban', 'i muted') : o.status === 'ongoing' ? html`<span class="badge live">Agora</span>` : ''}
+  </button>`;
+}
+
+/** trata cliques comuns em linhas; retorna true se tratou */
+export async function handleRowAction(t) {
+  const { act, id } = t.dataset;
+  switch (act) {
+    case 'fav': {
+      const on = await toggleFavorite(t.dataset.kind, id);
+      haptic();
+      toast(on ? 'Adicionado aos favoritos' : 'Removido dos favoritos', { icon: 'star' });
+      return true;
+    }
+    case 'visited': {
+      const p = state.places.find((x) => x.id === id);
+      if (!p) return true;
+      await setPlaceVisited(id, !p.visited);
+      haptic();
+      toast(!p.visited ? 'Marcado como visitado · no Histórico' : 'Desmarcado como visitado', { icon: 'check' });
+      return true;
+    }
+    case 'open-place': openPlaceDetail(id); return true;
+    case 'open-event': openEventForm({ id }); return true;
+    case 'open-commitment': openCommitmentForm({ id }); return true;
+    default: return false;
+  }
+}
