@@ -8,7 +8,7 @@ import { openPlaceForm, openEventForm, openCommitmentForm, openItemForm } from '
 import { openPlaceDetail, openOccurrenceSheet } from '../sheets.js';
 import { occByKey, KIND_LABEL } from '../schedule.js';
 import { KIND_ICON } from '../icons.js';
-import { matchScore, byName } from '../util.js';
+import { matchScore, byName, collator } from '../util.js';
 import { dayLabel, fmtDateShort, fmtHM, fmtRange, startOfDay } from '../time.js';
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -81,8 +81,8 @@ export const createEventsView = () => createListView({
     return [
       ['all', 'Todos', E.length],
       ['upcoming', 'Próximos', n((e) => e.start != null && !evDone(e, now))],
-      ['nodate', 'Sem data', n((e) => e.start == null)],
-      ['done', 'Concluídos', n((e) => e.start != null && evDone(e, now))],
+      ['nodate', 'Sem data', n((e) => e.start == null && !evDone(e, now))],
+      ['done', 'Concluídos', n((e) => evDone(e, now))],
       ['fav', 'Favoritos', n((e) => e.favorite)],
       ['cultura', 'Cultura', n((e) => e.category === 'cultura')],
       ['aventura', 'Aventura', n((e) => e.category === 'aventura')],
@@ -97,16 +97,16 @@ export const createEventsView = () => createListView({
     const pass = {
       all: () => true,
       upcoming: (e) => e.start != null && !evDone(e, now),
-      nodate: (e) => e.start == null,
-      done: (e) => e.start != null && evDone(e, now),
+      nodate: (e) => e.start == null && !evDone(e, now),
+      done: (e) => evDone(e, now),
       fav: (e) => e.favorite,
       cultura: (e) => e.category === 'cultura', aventura: (e) => e.category === 'aventura', outros: (e) => e.category === 'outros',
     }[filter] || (() => true);
     const list = state.events.filter(pass).filter((e) => matchScore(q, e.name, placeName(e.placeId)) > 0);
     if (!list.length) return noResults(q);
     const up = list.filter((e) => e.start != null && !evDone(e, now)).sort((a, b) => a.start - b.start);
-    const nodate = list.filter((e) => e.start == null).sort(byName);
-    const done = list.filter((e) => e.start != null && evDone(e, now)).sort((a, b) => b.start - a.start);
+    const nodate = list.filter((e) => e.start == null && !evDone(e, now)).sort(byName);
+    const done = list.filter((e) => evDone(e, now)).sort((a, b) => (b.start ?? -1) - (a.start ?? -1) || byName(a, b));
     return html`
       ${up.length ? section('Próximos', up.map((e) => eventRow(e, now)), up.length) : ''}
       ${nodate.length ? section('Sem data', nodate.map((e) => eventRow(e, now)), nodate.length) : ''}
@@ -194,7 +194,8 @@ export const createFavoritesView = () => createListView({
 const HIST_GROUP = { place: 'place', visit: 'place', event: 'event', commitment: 'commitment', item: 'item' };
 
 function histRow(h, now) {
-  const when = h.start != null ? fmtRange(h.start, h.end) : `marcado às ${fmtHM(h.at)}`;
+  const imported = h.source === 'import';
+  const when = imported ? (h.start != null ? `${fmtDateShort(h.start, now)}` : 'feito') : h.start != null ? fmtRange(h.start, h.end) : `marcado às ${fmtHM(h.at)}`;
   const kindTxt = h.kind === 'place' ? 'Local visitado' : h.kind === 'visit' ? 'Visita a local' : h.kind === 'item' ? 'Horário avulso' : KIND_LABEL[h.kind];
   return html`<button type="button" class="row hrow" data-hid="${h.id}">
     <span class="kicon k-${h.kind === 'place' ? 'visit' : h.kind}">${ic(KIND_ICON[h.kind], 'i sm')}</span>
@@ -202,7 +203,7 @@ function histRow(h, now) {
       <div class="row-title">${h.title}</div>
       <div class="row-sub">${kindTxt}${h.kind === 'event' && h.subtitle ? ` · ${h.subtitle}` : ''}</div>
     </div>
-    <div class="row-right"><b>${when}</b><span>${h.source === 'manual' ? 'manual' : 'automático'}</span></div>
+    <div class="row-right"><b>${when}</b><span>${imported ? 'importado' : h.source === 'manual' ? 'manual' : 'automático'}</span></div>
   </button>`;
 }
 
@@ -243,12 +244,16 @@ export const createHistoryView = () => createListView({
       .sort((a, b) => b.at - a.at);
     if (!list.length) return noResults(q);
     const groups = new Map();
+    const imported = [];
     for (const h of list) {
+      if (h.source === 'import') { imported.push(h); continue; }
       const k = startOfDay(h.at);
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k).push(h);
     }
-    return html`${[...groups.entries()].map(([d, hs]) => section(dayLabel(d, now), hs.map((h) => histRow(h, now)), fmtDateShort(d, now)))}`;
+    imported.sort((a, b) => collator.compare(a.title, b.title));
+    return html`${[...groups.entries()].map(([d, hs]) => section(dayLabel(d, now), hs.map((h) => histRow(h, now)), fmtDateShort(d, now)))}
+      ${imported.length ? section('Feitos antes do Agentonator', imported.map((h) => histRow(h, now)), `${imported.length} · sem data`) : ''}`;
   },
   onClick: (t) => {
     const row = t.closest?.('[data-hid]');
@@ -269,8 +274,10 @@ async function openHistoryEntry(id) {
   if (h.kind === 'event' && state.events.some((e) => e.id === h.refId)) actions.push({ label: 'Editar evento', value: 'event', icon: 'pencil' });
   if (h.kind === 'item' && state.items.some((i) => i.id === h.refId)) actions.push({ label: 'Editar horário', value: 'item', icon: 'pencil' });
   actions.push({ label: occ ? 'Não aconteceu (remover)' : 'Remover do histórico', value: 'remove', icon: 'trash', style: 'destructive' });
-  const when = h.start != null ? `${dayLabel(h.start)} · ${fmtRange(h.start, h.end)}` : `Marcado em ${fmtDateShort(h.at)} às ${fmtHM(h.at)}`;
-  const v = await actionSheet({ title: h.title, message: `${when} · ${h.source === 'manual' ? 'registrado manualmente' : 'concluído automaticamente'}`, actions });
+  const when = h.source === 'import' ? 'Importado da sua lista anterior (data não informada)'
+    : h.start != null ? `${dayLabel(h.start)} · ${fmtRange(h.start, h.end)}` : `Marcado em ${fmtDateShort(h.at)} às ${fmtHM(h.at)}`;
+  const how = h.source === 'import' ? '' : ` · ${h.source === 'manual' ? 'registrado manualmente' : 'concluído automaticamente'}`;
+  const v = await actionSheet({ title: h.title, message: `${when}${how}`, actions });
   if (v === 'place') openPlaceDetail(h.placeId);
   if (v === 'occ') openOccurrenceSheet(occKey);
   if (v === 'event') openEventForm({ id: h.refId });

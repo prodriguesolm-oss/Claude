@@ -59,8 +59,11 @@ export function hueOf(s) {
 }
 
 export function initials(name) {
-  const parts = String(name || '?').trim().split(/\s+/).filter(Boolean);
-  const a = parts[0]?.[0] || '?';
+  const words = String(name || '').replace(/[^\p{L}\p{N}\s]/gu, ' ').trim().split(/\s+/).filter(Boolean);
+  const main = words.filter((w) => !/^(da|de|do|das|dos|e|a|o|the|of)$/i.test(w));
+  const parts = main.length ? main : words;
+  if (!parts.length) return '?';
+  const a = parts[0][0];
   const b = parts.length > 1 ? parts[parts.length - 1][0] : '';
   return (a + b).toUpperCase();
 }

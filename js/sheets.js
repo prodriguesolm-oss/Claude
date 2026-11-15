@@ -2,7 +2,7 @@
 import {
   state, subscribe, toggleFavorite, setPlaceVisited, getPhoto, setOccStatus, cancelOccurrence,
   restoreOccurrence, unscheduleEvent, deleteEvent, deleteVisit, deleteCommitment, updateSettings,
-  exportData, importData, wipeAll, db, deleteItem, markBackupDone, setRemind,
+  exportData, importData, wipeAll, db, deleteItem, markBackupDone, setRemind, mergeImport, previewMerge,
 } from './store.js';
 import {
   pushSupported, permission, pushReady, pushStatus, onPushStatus, enablePush, disablePush, sendTest, syncNow, normalizeServer,
@@ -57,7 +57,7 @@ export function openPlaceDetail(id) {
         <a class="cell" href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener"><span class="cell-ic">${ic('map', 'i sm')}</span><span class="grow">Abrir no Google Maps</span>${ic('chevR', 'i sm muted')}</a>
       </div>
       ${upcoming.length ? html`<div class="group-label">Na agenda</div><div class="group">${upcoming.slice(0, 8).map((o) => occRowWithDay(o, now))}</div>` : ''}
-      ${past.length ? html`<div class="group-label" style="margin-top:22px">Histórico neste local</div><div class="group">${past.map((h) => html`<div class="row mini"><span class="kicon sm k-${h.kind}">${ic(KIND_ICON[h.kind], 'i xs')}</span><div class="row-main"><div class="row-title">${h.title}</div><div class="row-sub">${dayLabel(h.at, now)} · ${h.start != null ? fmtRange(h.start, h.end) : `marcado às ${fmtHM(h.at)}`}</div></div></div>`)}</div>` : ''}
+      ${past.length ? html`<div class="group-label" style="margin-top:22px">Histórico neste local</div><div class="group">${past.map((h) => html`<div class="row mini"><span class="kicon sm k-${h.kind}">${ic(KIND_ICON[h.kind], 'i xs')}</span><div class="row-main"><div class="row-title">${h.title}</div><div class="row-sub">${h.source === 'import' ? 'Feito antes do Agentonator (sem data)' : `${dayLabel(h.at, now)} · ${h.start != null ? fmtRange(h.start, h.end) : `marcado às ${fmtHM(h.at)}`}`}</div></div></div>`)}</div>` : ''}
     `);
   };
   render();
@@ -305,6 +305,24 @@ export function backupAgeLabel(now = Date.now()) {
   return `Último backup: ${days === 0 ? 'hoje' : days === 1 ? 'ontem' : `há ${days} dias`}`;
 }
 
+/** confirma e importa uma lista (adiciona sem apagar) */
+export async function runMerge(data) {
+  const p = previewMerge(data);
+  const ok = await confirmDialog({
+    title: `Importar ${p.title}?`,
+    message: `${p.places} locais (${p.visited} já visitados), ${p.events} eventos (${p.done} já feitos)${p.visits ? ` e ${p.visits} visita agendada` : ''}.\n\nNada do que você já tem será apagado. Itens com o mesmo nome dos seus são ignorados.`,
+    ok: 'Importar',
+  });
+  if (!ok) return null;
+  const r = await mergeImport(data);
+  const skipped = r.placesSkipped + r.eventsSkipped + r.visitsSkipped;
+  await alertDialog({
+    title: 'Lista importada ✓',
+    message: `Adicionados: ${r.placesAdded} locais, ${r.eventsAdded} eventos${r.visitsAdded ? `, ${r.visitsAdded} visita na agenda` : ''}.${skipped ? `\n${skipped} item(ns) já existiam e foram mantidos como estavam.` : ''}`,
+  });
+  return r;
+}
+
 function notificationsHtml(s) {
   const sup = pushSupported();
   let title;
@@ -358,7 +376,8 @@ export function openSettings() {
       <div class="form-group">
         <div class="cell"><span class="cell-ic">${ic('shield', 'i sm')}</span><span class="grow"><span class="cell-title">Salvo neste iPhone</span><span class="cell-hint">${counts}${storageInfo ? html`<br>${storageInfo}` : ''}</span></span></div>
         <button type="button" class="cell" data-act="export"><span class="cell-ic">${ic('upload', 'i sm')}</span><span class="grow"><span class="cell-title">Exportar backup</span><span class="cell-hint">${backupAgeLabel()}</span></span></button>
-        <button type="button" class="cell" data-act="import"><span class="cell-ic">${ic('download', 'i sm')}</span><span class="grow">Restaurar backup</span></button>
+        <button type="button" class="cell" data-act="merge"><span class="cell-ic">${ic('list', 'i sm')}</span><span class="grow"><span class="cell-title">Importar lista</span><span class="cell-hint">Adiciona locais e eventos de um arquivo — não apaga nada</span></span></button>
+        <button type="button" class="cell" data-act="import"><span class="cell-ic">${ic('download', 'i sm')}</span><span class="grow"><span class="cell-title">Restaurar backup</span><span class="cell-hint">Substitui todos os dados pelos do backup</span></span></button>
         <input type="file" accept="application/json,.json" data-ref="importFile" hidden>
       </div>
       <div class="group-foot">Os dados ficam gravados no aparelho e funcionam offline. Faça um backup de vez em quando e salve no app Arquivos / iCloud Drive.</div>
@@ -387,6 +406,7 @@ export function openSettings() {
       try {
         const data = JSON.parse(await t.files[0].text());
         if (data?.app !== 'agentonator') throw new Error('Este arquivo não é um backup do Agentonator.');
+        if (data.kind === 'merge') { await runMerge(data); return; }
         const ok = await confirmDialog({
           title: 'Restaurar backup?',
           message: `Backup de ${data.exportedAt ? new Date(data.exportedAt).toLocaleString('pt-BR') : 'data desconhecida'} com ${(data.places || []).length} locais e ${(data.events || []).length} eventos. Os dados atuais serão SUBSTITUÍDOS.`,
@@ -435,7 +455,7 @@ export function openSettings() {
     if (act === 'export') {
       try { await doExport(); } catch (err) { alertDialog({ title: 'Falha ao exportar', message: err.message }); }
     }
-    if (act === 'import') ctl.body.querySelector('[data-ref="importFile"]').click();
+    if (act === 'import' || act === 'merge') ctl.body.querySelector('[data-ref="importFile"]').click();
     if (act === 'wipe') {
       const ok = await confirmDialog({ title: 'Apagar TUDO?', message: 'Todos os locais, fotos, eventos, compromissos e histórico serão apagados deste iPhone. Considere exportar um backup antes.', ok: 'Apagar tudo', destructive: true });
       if (!ok) return;

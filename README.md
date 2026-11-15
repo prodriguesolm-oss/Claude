@@ -89,6 +89,8 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
   "armazenamento protegido ✓" quando o iOS concede. Apps adicionados à Tela de Início não sofrem a limpeza
   automática de 7 dias do Safari.
 - Atualizações do app nunca apagam dados: o banco só ganha o que falta (testado da versão 1 para a 2).
+- **Importar lista**: Ajustes → **Importar lista** adiciona locais e eventos de um arquivo `.json` (formato
+  `kind: "merge"`) sem apagar nada; itens com o mesmo nome dos que você já tem são ignorados.
 - **Backup**: Agenda → ⚙︎ (Ajustes) → **Exportar backup** gera um arquivo `.json` (com fotos) que você salva no
   app Arquivos / iCloud Drive. **Restaurar backup** recupera tudo — útil ao trocar de iPhone. O app lembra de
   fazer backup a cada 2 semanas.

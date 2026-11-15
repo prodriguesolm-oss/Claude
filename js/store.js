@@ -4,7 +4,7 @@
 
 import * as db from './db.js';
 import { sweep, applyMove, historyFor, historyId } from './schedule.js';
-import { uid } from './util.js';
+import { uid, norm } from './util.js';
 
 export const DEFAULT_SETTINGS = {
   conflictPolicy: 'ask', // 'ask' | 'push-existing' | 'push-new' | 'overlap'
@@ -421,6 +421,103 @@ export async function importData(data) {
   writeMirror();
   emit();
   await runSweep();
+}
+
+/** resumo do que um arquivo de lista vai adicionar (para a confirmação) */
+export function previewMerge(data) {
+  const places = data.places || [];
+  const events = data.events || [];
+  return {
+    title: data.title || 'Lista',
+    places: places.length,
+    visited: places.filter((p) => p.visited).length,
+    events: events.length,
+    done: events.filter((e) => e.done).length,
+    visits: (data.visits || []).length,
+  };
+}
+
+/**
+ * Importa uma lista ADICIONANDO ao que já existe (nada é apagado).
+ * Itens com o mesmo nome (sem diferenciar acentos/maiúsculas) são ignorados — importar 2x não duplica.
+ * Formato: { app:'agentonator', kind:'merge', places:[{name, category, address?, visited?}],
+ *            events:[{name, place, category?, done?, start?: 'YYYY-MM-DDTHH:mm', durationMin?}],
+ *            visits:[{place, start, durationMin?}] }
+ */
+export async function mergeImport(data) {
+  if (!data || data.app !== 'agentonator' || data.kind !== 'merge') throw new Error('Este arquivo não é uma lista do Agentonator.');
+  const now = Date.now();
+  const ops = [];
+  const summary = { placesAdded: 0, placesSkipped: 0, eventsAdded: 0, eventsSkipped: 0, visitsAdded: 0, visitsSkipped: 0 };
+  const CATS = ['cultura', 'aventura', 'outros'];
+  const toTime = (s) => { if (!s) return null; const t = new Date(s).getTime(); return Number.isFinite(t) ? t : null; };
+
+  const placeByName = new Map(state.places.map((p) => [norm(p.name), p]));
+  const resolved = new Map(); // nome normalizado -> local (existente ou novo)
+  for (const ip of data.places || []) {
+    const name = String(ip.name || '').trim();
+    if (!name) continue;
+    const key = norm(name);
+    if (resolved.has(key)) continue;
+    const existing = placeByName.get(key);
+    if (existing) { resolved.set(key, existing); summary.placesSkipped++; continue; }
+    const p = {
+      id: uid(), name, address: String(ip.address || '').trim(), category: CATS.includes(ip.category) ? ip.category : null,
+      favorite: !!ip.favorite, visited: !!ip.visited, visitedAt: null, visitedVia: ip.visited ? 'import' : null,
+      thumb: null, hasPhoto: false, createdAt: now, updatedAt: now,
+    };
+    ops.push({ type: 'put', store: 'places', value: p });
+    if (p.visited) {
+      ops.push({ type: 'put', store: 'history', value: {
+        id: `h:place:${p.id}`, kind: 'place', refId: p.id, placeId: p.id, title: p.name, subtitle: p.address,
+        category: p.category, start: null, end: null, at: now, source: 'import',
+      } });
+    }
+    resolved.set(key, p);
+    summary.placesAdded++;
+  }
+  const findPlace = (name) => resolved.get(norm(name)) || placeByName.get(norm(name)) || null;
+
+  const eventKeys = new Set(state.events.map((e) => `${e.placeId}|${norm(e.name)}`));
+  for (const ie of data.events || []) {
+    const name = String(ie.name || '').trim();
+    const place = findPlace(ie.place);
+    if (!name || !place) { summary.eventsSkipped++; continue; }
+    const k = `${place.id}|${norm(name)}`;
+    if (eventKeys.has(k)) { summary.eventsSkipped++; continue; }
+    eventKeys.add(k);
+    const start = toTime(ie.start);
+    const e = {
+      id: uid(), name, placeId: place.id, category: CATS.includes(ie.category) ? ie.category : null, favorite: !!ie.favorite,
+      start, end: start != null ? start + (Number(ie.durationMin) || 120) * 60_000 : null,
+      status: ie.done ? 'done' : 'planned', doneAt: null, createdAt: now, updatedAt: now,
+    };
+    ops.push({ type: 'put', store: 'events', value: e });
+    if (ie.done) {
+      ops.push({ type: 'put', store: 'history', value: {
+        id: `h:event:${e.id}`, kind: 'event', refId: e.id, placeId: place.id, title: e.name, subtitle: place.name,
+        category: e.category, start: e.start, end: e.end, at: now, source: 'import',
+      } });
+    }
+    summary.eventsAdded++;
+  }
+
+  const visitKeys = new Set(state.visits.map((v) => `${v.placeId}|${v.start}`));
+  for (const iv of data.visits || []) {
+    const place = findPlace(iv.place);
+    const start = toTime(iv.start);
+    if (!place || start == null || visitKeys.has(`${place.id}|${start}`)) { summary.visitsSkipped++; continue; }
+    visitKeys.add(`${place.id}|${start}`);
+    ops.push({ type: 'put', store: 'visits', value: {
+      id: uid(), placeId: place.id, start, end: start + (Number(iv.durationMin) || 120) * 60_000,
+      status: 'planned', doneAt: null, note: '', createdAt: now, updatedAt: now,
+    } });
+    summary.visitsAdded++;
+  }
+
+  await commit(ops); // uma única transação: entra tudo ou nada
+  await runSweep();
+  return summary;
 }
 
 export async function wipeAll() {
