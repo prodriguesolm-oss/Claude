@@ -35,6 +35,7 @@ export const byName = (a, b) => collator.compare(a.name || '', b.name || '');
 export const CATEGORIES = [
   { v: 'cultura', label: 'Cultura' },
   { v: 'aventura', label: 'Aventura' },
+  { v: 'bares', label: 'Bares e restaurantes' },
   { v: 'outros', label: 'Outros' },
 ];
 export const catLabel = (v) => CATEGORIES.find((c) => c.v === v)?.label || '';

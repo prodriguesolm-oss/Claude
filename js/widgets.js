@@ -42,14 +42,19 @@ export function placeThumb(p, cls = 'thumb') {
   return html`<div class="${cls} ph" style="--h:${hueOf(p?.name)}">${initials(p?.name)}</div>`;
 }
 
+/** botão ♥ "Date" (mesmo jeito simples da estrela) */
+export function dateBtn(kind, item) {
+  return html`<button type="button" class="tgl heart ${item.isDate ? 'on' : ''}" data-act="date" data-kind="${kind}" data-id="${item.id}" aria-label="${item.isDate ? 'Desmarcar Date' : 'Marcar como Date'}" aria-pressed="${item.isDate ? 'true' : 'false'}">${ic('heart', 'i', item.isDate)}</button>`;
+}
+
 export function starBtn(kind, item) {
   return html`<button type="button" class="tgl star ${item.favorite ? 'on' : ''}" data-act="fav" data-kind="${kind}" data-id="${item.id}" aria-label="${item.favorite ? 'Remover dos favoritos' : 'Favoritar'}" aria-pressed="${item.favorite ? 'true' : 'false'}">${ic('star', 'i', item.favorite)}</button>`;
 }
 
 // ---------- campos de formulário ----------
 
-export function segHTML(name, options, value) {
-  return html`<div class="seg" data-seg="${name}"><input type="hidden" name="${name}" value="${value ?? ''}">${options.map(([v, label]) => html`<button type="button" data-v="${v}" class="${String(v) === String(value ?? '') ? 'on' : ''}">${label}</button>`)}</div>`;
+export function segHTML(name, options, value, cls = '') {
+  return html`<div class="seg ${cls}" data-seg="${name}"><input type="hidden" name="${name}" value="${value ?? ''}">${options.map(([v, label]) => html`<button type="button" data-v="${v}" class="${String(v) === String(value ?? '') ? 'on' : ''}">${label}</button>`)}</div>`;
 }
 
 export function switchCell(name, label, checked, iconName) {

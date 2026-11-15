@@ -1,6 +1,6 @@
 // Fichas: detalhe do local, item da agenda, menu "+" da agenda e Ajustes.
 import {
-  state, subscribe, toggleFavorite, setPlaceVisited, getPhoto, setOccStatus, cancelOccurrence,
+  state, subscribe, toggleFavorite, toggleDate, setPlaceVisitedDate, setPlaceVisited, getPhoto, setOccStatus, cancelOccurrence,
   restoreOccurrence, unscheduleEvent, deleteEvent, deleteVisit, deleteCommitment, updateSettings,
   exportData, importData, wipeAll, db, deleteItem, markBackupDone, setRemind, mergeImport, previewMerge,
 } from './store.js';
@@ -18,7 +18,7 @@ import { KIND_ICON } from './icons.js';
 import { haptic } from './util.js';
 import {
   MIN, DAY, fmtDayLong, fmtRange, fmtDur, fmtHM, dayLabel, fmtDateShort, fmtMin, parseHM, dateKey, parseDateKey,
-  LEAD_OPTIONS, leadLabel,
+  LEAD_OPTIONS, leadLabel, atMinutes,
 } from './time.js';
 
 const remindText = (m) => (m === 0 ? 'Notificar na hora do início' : `Notificar ${leadLabel(m)} antes`);
@@ -46,18 +46,21 @@ export function openPlaceDetail(id) {
       <div class="row-meta center">${catBadge(p.category)}${p.visited
         ? html`<span class="badge ok">${ic('check', 'i xs')} Visitado${p.visitedAt ? ` em ${fmtDateShort(p.visitedAt, now)}` : ''}</span>`
         : html`<span class="badge">Ainda não visitado</span>`}</div>
-      <div class="quick3">
+      <div class="quick3 four">
         <button type="button" class="${p.favorite ? 'on star' : ''}" data-act="fav">${ic('star', 'i', p.favorite)}<span>${p.favorite ? 'Favorito' : 'Favoritar'}</span></button>
+        <button type="button" class="${p.isDate ? 'on heart' : ''}" data-act="date">${ic('heart', 'i', p.isDate)}<span>Date</span></button>
         <button type="button" class="${p.visited ? 'on check' : ''}" data-act="visited">${ic(p.visited ? 'checkCircleFill' : 'checkCircle')}<span>${p.visited ? 'Visitado' : 'Já fui'}</span></button>
-        <button type="button" data-act="visit">${ic('calendar')}<span>Agendar visita</span></button>
+        <button type="button" data-act="visit">${ic('calendar')}<span>Agendar</span></button>
       </div>
+      ${p.visited ? html`<div class="form-group"><label class="cell"><span class="cell-ic ok-ic">${ic('check', 'i sm')}</span><span class="lbl grow">Visitado em</span><input type="date" data-ref="visitedDate" value="${p.visitedAt ? dateKey(p.visitedAt) : ''}" max="${dateKey(now)}"></label></div>
+        <div class="group-foot">${p.visitedAt ? 'Toque na data para alterar.' : 'Sem data — toque para informar quando você foi.'}</div>` : ''}
       <div class="form-group">
         <button type="button" class="cell" data-act="event"><span class="cell-ic">${ic('ticket', 'i sm')}</span><span class="grow">Criar evento neste local</span>${ic('chevR', 'i sm muted')}</button>
         <a class="cell" href="https://maps.apple.com/?q=${q}" target="_blank" rel="noopener"><span class="cell-ic">${ic('map', 'i sm')}</span><span class="grow">Abrir no Apple Maps</span>${ic('chevR', 'i sm muted')}</a>
         <a class="cell" href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener"><span class="cell-ic">${ic('map', 'i sm')}</span><span class="grow">Abrir no Google Maps</span>${ic('chevR', 'i sm muted')}</a>
       </div>
       ${upcoming.length ? html`<div class="group-label">Na agenda</div><div class="group">${upcoming.slice(0, 8).map((o) => occRowWithDay(o, now))}</div>` : ''}
-      ${past.length ? html`<div class="group-label" style="margin-top:22px">Histórico neste local</div><div class="group">${past.map((h) => html`<div class="row mini"><span class="kicon sm k-${h.kind}">${ic(KIND_ICON[h.kind], 'i xs')}</span><div class="row-main"><div class="row-title">${h.title}</div><div class="row-sub">${h.source === 'import' ? 'Feito antes do Agentonator (sem data)' : `${dayLabel(h.at, now)} · ${h.start != null ? fmtRange(h.start, h.end) : `marcado às ${fmtHM(h.at)}`}`}</div></div></div>`)}</div>` : ''}
+      ${past.length ? html`<div class="group-label" style="margin-top:22px">Histórico neste local</div><div class="group">${past.map((h) => html`<div class="row mini"><span class="kicon sm k-${h.kind}">${ic(KIND_ICON[h.kind], 'i xs')}</span><div class="row-main"><div class="row-title">${h.title}</div><div class="row-sub">${h.source === 'import' ? 'Feito antes do Agentonator (sem data)' : h.dateOnly ? `${fmtDateShort(h.at, now)} · visitado` : `${dayLabel(h.at, now)} · ${h.start != null ? fmtRange(h.start, h.end) : `marcado às ${fmtHM(h.at)}`}`}</div></div></div>`)}</div>` : ''}
     `);
   };
   render();
@@ -71,6 +74,12 @@ export function openPlaceDetail(id) {
   }
   const unsub = subscribe(() => { if (!ctl.closed) render(); });
   ctl.result.then(unsub);
+  ctl.body.addEventListener('change', async (e) => {
+    if (e.target.dataset.ref !== 'visitedDate' || !e.target.value) return;
+    await setPlaceVisitedDate(id, atMinutes(e.target.value, 12 * 60));
+    haptic();
+    toast(`Visita registrada em ${fmtDateShort(atMinutes(e.target.value, 12 * 60))}`, { icon: 'check' });
+  });
   ctl.body.addEventListener('click', async (e) => {
     const key = e.target.closest('[data-key]')?.dataset.key;
     if (key) { openOccurrenceSheet(key); return; }
@@ -78,6 +87,7 @@ export function openPlaceDetail(id) {
     const p = state.places.find((x) => x.id === id);
     if (!p) return;
     if (act === 'fav') { const on = await toggleFavorite('place', id); haptic(); toast(on ? 'Adicionado aos favoritos' : 'Removido dos favoritos', { icon: 'star' }); }
+    if (act === 'date') { const on = await toggleDate('place', id); haptic(); toast(on ? 'Marcado como Date ♥' : 'Removido dos Dates', { icon: 'heart' }); }
     if (act === 'visited') { await setPlaceVisited(id, !p.visited); haptic(); toast(!p.visited ? 'Marcado como visitado · no Histórico' : 'Desmarcado', { icon: 'check' }); }
     if (act === 'visit') openVisitForm({ prefill: { placeId: id } });
     if (act === 'event') openEventForm({ prefill: { placeId: id } });
@@ -308,18 +318,22 @@ export function backupAgeLabel(now = Date.now()) {
 /** confirma e importa uma lista (adiciona sem apagar) */
 export async function runMerge(data) {
   const p = previewMerge(data);
-  const ok = await confirmDialog({
-    title: `Importar ${p.title}?`,
-    message: `${p.places} locais (${p.visited} já visitados), ${p.events} eventos (${p.done} já feitos)${p.visits ? ` e ${p.visits} visita agendada` : ''}.\n\nNada do que você já tem será apagado. Itens com o mesmo nome dos seus são ignorados.`,
-    ok: 'Importar',
-  });
+  const lines = [];
+  if (p.places || p.events) lines.push(`${p.places} locais (${p.visited} já visitados), ${p.events} eventos (${p.done} já feitos)${p.visits ? ` e ${p.visits} visita agendada` : ''}.`);
+  if (p.merges.length) {
+    lines.push(`Juntar locais repetidos:\n${p.merges.map((m) => `• ${m.names.filter((n) => n !== m.keep).join(' + ')} → ${m.keep}`).join('\n')}`);
+  }
+  lines.push(p.merges.length && !(p.places || p.events)
+    ? 'Eventos, visitas, favoritos e histórico dos repetidos passam para o local que fica.'
+    : 'Nada do que você já tem será apagado. Itens com o mesmo nome dos seus são ignorados.');
+  const ok = await confirmDialog({ title: `Importar ${p.title}?`, message: lines.join('\n\n'), ok: p.merges.length && !(p.places || p.events) ? 'Juntar' : 'Importar' });
   if (!ok) return null;
   const r = await mergeImport(data);
   const skipped = r.placesSkipped + r.eventsSkipped + r.visitsSkipped;
-  await alertDialog({
-    title: 'Lista importada ✓',
-    message: `Adicionados: ${r.placesAdded} locais, ${r.eventsAdded} eventos${r.visitsAdded ? `, ${r.visitsAdded} visita na agenda` : ''}.${skipped ? `\n${skipped} item(ns) já existiam e foram mantidos como estavam.` : ''}`,
-  });
+  const parts = [];
+  if (p.places || p.events) parts.push(`Adicionados: ${r.placesAdded} locais, ${r.eventsAdded} eventos${r.visitsAdded ? `, ${r.visitsAdded} visita na agenda` : ''}.${skipped ? `\n${skipped} item(ns) já existiam e foram mantidos como estavam.` : ''}`);
+  if (p.merges.length) parts.push(r.merged ? `${r.merged} grupo(s) de locais repetidos juntados.` : 'Nenhum repetido encontrado (talvez já tenham sido juntados).');
+  await alertDialog({ title: 'Pronto ✓', message: parts.join('\n\n') });
   return r;
 }
 

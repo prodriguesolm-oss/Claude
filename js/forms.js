@@ -16,7 +16,7 @@ import {
   MIN, DAY, roundUp, minutesOfDay, fmtMin, parseHM, atMinutes, dateKey, WD_CAP, fmtDayLong, fmtRange,
 } from './time.js';
 
-const CAT_OPTIONS = [['', 'Nenhuma'], ['cultura', 'Cultura'], ['aventura', 'Aventura'], ['outros', 'Outros']];
+const CAT_OPTIONS = [['', 'Nenhuma'], ['cultura', 'Cultura'], ['aventura', 'Aventura'], ['bares', 'Bares e restaurantes'], ['outros', 'Outros']];
 
 export const defaultStart = () => roundUp(Date.now() + 15 * MIN, 30);
 
@@ -113,8 +113,8 @@ export function openPlaceForm({ id = null, prefill = {} } = {}) {
         ${textCell('address', 'Endereço', p.address, { placeholder: 'Rua, número, bairro, cidade', multiline: true })}
       </div>
       <div class="group-label">Classificação (opcional)</div>
-      <div class="form-group pad">${segHTML('category', CAT_OPTIONS, p.category || '')}</div>
-      <div class="form-group">${switchCell('favorite', 'Favorito', p.favorite, 'star')}</div>
+      <div class="form-group pad">${segHTML('category', CAT_OPTIONS, p.category || '', 'wrap')}</div>
+      <div class="form-group">${switchCell('favorite', 'Favorito', p.favorite, 'star')}${switchCell('isDate', 'Date ♥', !!p.isDate, 'heart')}</div>
       ${prev ? '' : html`<div class="group-label">Agenda (opcional)</div>
         <div class="form-group">
           ${switchCell('schedule', 'Agendar visita', !!prefill.schedule, 'calendar')}
@@ -132,6 +132,7 @@ export function openPlaceForm({ id = null, prefill = {} } = {}) {
         address: f.elements.address.value.trim(),
         category: f.elements.category.value || null,
         favorite: f.elements.favorite.checked,
+        isDate: f.elements.isDate.checked,
       };
       let res = null;
       let vStart = null;
@@ -207,13 +208,15 @@ export function openEventForm({ id = null, prefill = {}, requireSchedule = false
   const prev = id ? state.events.find((e) => e.id === id) : null;
   const e = prev || { name: '', placeId: prefill.placeId || null, category: null, favorite: false, start: null };
   const place = state.places.find((p) => p.id === e.placeId);
+  const isDone = prev?.status === 'done';
   const scheduled = prev ? prev.start != null : true;
-  const start = prev?.start ?? prefill.start ?? defaultStart();
+  // evento já feito e sem data: sugere uma data no passado (para não "desfazer" sem querer)
+  const start = prev?.start ?? prefill.start ?? (isDone ? roundUp(Date.now() - 3 * 60 * MIN, 30) : defaultStart());
   const dur = prev?.start != null ? Math.round((prev.end - prev.start) / MIN) : 120;
 
-  const statusLine = prev && prev.start != null
-    ? (prev.status === 'done' ? 'Concluído — está no Histórico.' : prev.status === 'missed' ? 'Marcado como “não aconteceu”.' : '')
-    : '';
+  const statusLine = isDone
+    ? 'Concluído — está no Histórico. Você pode mudar a data em que foi; ele continua como feito.'
+    : prev?.status === 'missed' ? 'Marcado como “não aconteceu”.' : '';
 
   const ctl = openSheet({
     title: prev ? 'Editar evento' : 'Novo evento',
@@ -223,16 +226,16 @@ export function openEventForm({ id = null, prefill = {}, requireSchedule = false
       <div class="form-group">${placePickerCell(place)}</div>
       <div class="group-label">Evento</div>
       <div class="form-group">${textCell('name', 'Nome', e.name, { placeholder: 'Opcional — usa o nome do local' })}</div>
-      <div class="group-label">Quando</div>
+      <div class="group-label">${isDone ? 'Quando foi' : 'Quando'}</div>
       <div class="form-group">
-        ${requireSchedule ? raw('<input type="checkbox" name="schedule" checked hidden>') : switchCell('schedule', 'Agendar', scheduled, 'calendar')}
+        ${requireSchedule ? raw('<input type="checkbox" name="schedule" checked hidden>') : switchCell('schedule', isDone ? 'Tem data' : 'Agendar', scheduled, 'calendar')}
         <div data-show-when="schedule">${dateTimeCells('e', start)}${durationCell('duration', dur, 'e')}</div>
       </div>
       <div class="group-foot">${statusLine || 'Eventos com horário entram automaticamente na Agenda.'}</div>
       <div data-show-when="schedule">${remindGroup(e.remind)}</div>
       <div class="group-label">Classificação (opcional)</div>
-      <div class="form-group pad">${segHTML('category', CAT_OPTIONS, e.category || '')}</div>
-      <div class="form-group">${switchCell('favorite', 'Favorito', e.favorite, 'star')}</div>
+      <div class="form-group pad">${segHTML('category', CAT_OPTIONS, e.category || '', 'wrap')}</div>
+      <div class="form-group">${switchCell('favorite', 'Favorito', e.favorite, 'star')}${switchCell('isDate', 'Date ♥', !!e.isDate, 'heart')}</div>
       ${prev ? deleteButton('Excluir evento') : ''}
     </form>`,
     onRight: async (c) => {
@@ -241,7 +244,7 @@ export function openEventForm({ id = null, prefill = {}, requireSchedule = false
       if (!placeId) { shake(c.body.querySelector('.picker')); toast('Escolha um local cadastrado', { icon: 'pin' }); return false; }
       const pl = state.places.find((p) => p.id === placeId);
       const name = f.elements.name.value.trim() || pl?.name || 'Evento';
-      const data = { id: prev?.id, placeId, name, category: f.elements.category.value || null, favorite: f.elements.favorite.checked, start: null, end: null, remind: readRemind(f) };
+      const data = { id: prev?.id, placeId, name, category: f.elements.category.value || null, favorite: f.elements.favorite.checked, isDate: f.elements.isDate.checked, start: null, end: null, remind: readRemind(f) };
       let res = null;
       let reqStart = null;
       if (f.elements.schedule.checked) {
@@ -249,7 +252,8 @@ export function openEventForm({ id = null, prefill = {}, requireSchedule = false
         if (reqStart == null) { toast('Informe data e horário', { icon: 'alert' }); return false; }
         const end = reqStart + Number(f.elements.duration.value) * MIN;
         const sameTime = prev && prev.start === reqStart && prev.end === end;
-        if (!sameTime) {
+        const pastDone = isDone && end <= Date.now(); // só corrigindo a data de algo já feito: sem checar conflito
+        if (!sameTime && pastDone) { data.start = reqStart; data.end = end; } else if (!sameTime) {
           res = await resolveConflicts({ key: prev ? `event:${prev.id}` : 'new', start: reqStart, end, title: name });
           if (!res) return false;
           data.start = res.start; data.end = res.end;
@@ -305,7 +309,7 @@ export function openVisitForm({ id = null, prefill = {} } = {}) {
       const end = s + Number(f.elements.duration.value) * MIN;
       const pl = state.places.find((p) => p.id === pid);
       let res = { start: s, end, moves: [], policy: null };
-      if (!(prev && prev.start === s && prev.end === end)) {
+      if (!(prev && prev.start === s && prev.end === end) && !(prev?.status === 'done' && end <= Date.now())) {
         res = await resolveConflicts({ key: prev ? `visit:${prev.id}` : 'new', start: s, end, title: pl?.name || 'Visita' });
         if (!res) return false;
       }
@@ -506,7 +510,7 @@ export function openItemForm({ id = null, prefill = {} } = {}) {
       if (s == null) { toast('Informe data e horário', { icon: 'alert' }); return false; }
       const end = s + Number(f.elements.duration.value) * MIN;
       let res = { start: s, end, moves: [], policy: null };
-      if (!(prev && prev.start === s && prev.end === end)) {
+      if (!(prev && prev.start === s && prev.end === end) && !(prev?.status === 'done' && end <= Date.now())) {
         res = await resolveConflicts({ key: prev ? `item:${prev.id}` : 'new', start: s, end, title });
         if (!res) return false;
       }

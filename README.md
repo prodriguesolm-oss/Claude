@@ -40,10 +40,10 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
 | Aba | Para quê |
 |---|---|
 | **Agenda** | A principal. Junta horários avulsos, eventos, visitas a locais e compromissos numa linha do tempo do dia (ou lista das próximas 3 semanas). |
-| **Locais** | Cadastro de lugares com nome, endereço, foto e classificação. Busca por nome, filtros, ★ favorito e ✓ visitado direto na lista. |
-| **Eventos** | Eventos sempre ligados a um local cadastrado, com data/hora opcional, classificação e favorito. |
+| **Locais** | Cadastro de lugares com nome, endereço, foto e classificação (Cultura, Aventura, Bares e restaurantes, Outros). Busca por nome, filtros, ★ favorito, ♥ Date e ✓ visitado direto na lista; data da visita editável. |
+| **Eventos** | Eventos sempre ligados a um local cadastrado, com data/hora opcional, classificação, ★ favorito e ♥ Date. Eventos já feitos podem ter a data corrigida sem deixar de estar feitos. |
 | **Compromissos** | Lista da sua rotina, agrupada por frequência: **diário**, **semanal**, **mensal** ou **único**. |
-| **Favoritos** | Locais e eventos marcados com ★, com filtro por tipo. |
+| **Favoritos** | Locais e eventos marcados com ★, com filtro por tipo, e o filtro **♥ Date** com todos os locais e eventos marcados como Date. |
 | **Histórico** | Tudo que já foi feito, com data e horário. |
 
 ### Agenda
@@ -90,7 +90,8 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
   automática de 7 dias do Safari.
 - Atualizações do app nunca apagam dados: o banco só ganha o que falta (testado da versão 1 para a 2).
 - **Importar lista**: Ajustes → **Importar lista** adiciona locais e eventos de um arquivo `.json` (formato
-  `kind: "merge"`) sem apagar nada; itens com o mesmo nome dos que você já tem são ignorados.
+  `kind: "merge"`) sem apagar nada; itens com o mesmo nome dos que você já tem são ignorados. O arquivo também
+  pode juntar locais repetidos (`mergePlaces: [{ keep, names }]`), levando eventos, visitas e histórico junto.
 - **Backup**: Agenda → ⚙︎ (Ajustes) → **Exportar backup** gera um arquivo `.json` (com fotos) que você salva no
   app Arquivos / iCloud Drive. **Restaurar backup** recupera tudo — útil ao trocar de iPhone. O app lembra de
   fazer backup a cada 2 semanas.

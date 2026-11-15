@@ -529,3 +529,18 @@ b { font-weight: 600; }
 .cell input[type="url"] { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 16px; color: var(--text); padding: 13px 0; text-align: right; -webkit-appearance: none; appearance: none; }
 .cell input[readonly] { color: var(--text2); }
 .as-group { max-height: calc(var(--vv-h, 100vh) - 110px - var(--safe-b)); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+/* ---------- Date ♥, bares e restaurantes, datas de visita ---------- */
+.tgls { display: flex; flex: none; align-items: center; }
+.tgls .tgl { width: 38px; }
+.tgl.heart.on { color: #ff4f7b; }
+.badge.cat-bares { color: #ff7a9a; background: rgba(255, 100, 130, .16); }
+.seg.wrap { flex-wrap: wrap; gap: 8px; padding: 0; background: none; }
+.seg.wrap button { flex: none; height: 34px; padding: 0 14px; border-radius: 17px; background: var(--fill2); }
+.seg.wrap button.on { background: var(--text); color: #000; box-shadow: none; }
+.quick3.four { grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.quick3.four button { height: 70px; font-size: 12px; }
+.quick3 button.on.heart { color: #ff4f7b; }
+.empty-ic.heart { color: #ff4f7b; background: linear-gradient(145deg, rgba(255, 79, 123, .28), rgba(191, 90, 242, .16)); }
+.cell-ic.ok-ic { color: var(--green); background: rgba(48, 209, 88, .15); }
+.sheet.auto-sheet { height: auto; }

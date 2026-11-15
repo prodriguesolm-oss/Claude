@@ -1,15 +1,15 @@
 // Abas de lista: Locais, Eventos, Compromissos, Favoritos e Histórico.
-import { state, deleteHistory, setOccStatus, setPlaceVisited } from '../store.js';
-import { html, ic, actionSheet, toast, confirmDialog } from '../ui.js';
+import { state, deleteHistory, setOccStatus, setPlaceVisited, setPlaceVisitedDate } from '../store.js';
+import { html, ic, actionSheet, toast, confirmDialog, openSheet } from '../ui.js';
 import { emptyState } from '../widgets.js';
 import { createListView } from './listview.js';
 import { placeRow, eventRow, commitmentRow, upcomingByPlace } from '../rows.js';
-import { openPlaceForm, openEventForm, openCommitmentForm, openItemForm } from '../forms.js';
+import { openPlaceForm, openEventForm, openCommitmentForm, openItemForm, openVisitForm } from '../forms.js';
 import { openPlaceDetail, openOccurrenceSheet } from '../sheets.js';
 import { occByKey, KIND_LABEL } from '../schedule.js';
 import { KIND_ICON } from '../icons.js';
 import { matchScore, byName, collator } from '../util.js';
-import { dayLabel, fmtDateShort, fmtHM, fmtRange, startOfDay } from '../time.js';
+import { dayLabel, fmtDateShort, fmtHM, fmtRange, startOfDay, dateKey, atMinutes } from '../time.js';
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const noResults = (q) => html`<div class="note center">Nada encontrado${q ? html` para “<b>${q}</b>”` : ' com este filtro'}.</div>`;
@@ -44,6 +44,7 @@ export const createPlacesView = () => createListView({
       ['todo', 'Não visitados', n((p) => !p.visited)],
       ['cultura', 'Cultura', n((p) => p.category === 'cultura')],
       ['aventura', 'Aventura', n((p) => p.category === 'aventura')],
+      ['bares', 'Bares e restaurantes', n((p) => p.category === 'bares')],
       ['outros', 'Outros', n((p) => p.category === 'outros')],
     ];
   },
@@ -53,7 +54,7 @@ export const createPlacesView = () => createListView({
     }
     const pass = {
       all: () => true, fav: (p) => p.favorite, visited: (p) => p.visited, todo: (p) => !p.visited,
-      cultura: (p) => p.category === 'cultura', aventura: (p) => p.category === 'aventura', outros: (p) => p.category === 'outros',
+      cultura: (p) => p.category === 'cultura', aventura: (p) => p.category === 'aventura', bares: (p) => p.category === 'bares', outros: (p) => p.category === 'outros',
     }[filter] || (() => true);
     const list = filterAndRank(state.places.filter(pass), q, (p) => [p.name, p.address], byName);
     if (!list.length) return noResults(q);
@@ -86,6 +87,7 @@ export const createEventsView = () => createListView({
       ['fav', 'Favoritos', n((e) => e.favorite)],
       ['cultura', 'Cultura', n((e) => e.category === 'cultura')],
       ['aventura', 'Aventura', n((e) => e.category === 'aventura')],
+      ['bares', 'Bares e restaurantes', n((e) => e.category === 'bares')],
       ['outros', 'Outros', n((e) => e.category === 'outros')],
     ];
   },
@@ -100,7 +102,7 @@ export const createEventsView = () => createListView({
       nodate: (e) => e.start == null && !evDone(e, now),
       done: (e) => evDone(e, now),
       fav: (e) => e.favorite,
-      cultura: (e) => e.category === 'cultura', aventura: (e) => e.category === 'aventura', outros: (e) => e.category === 'outros',
+      cultura: (e) => e.category === 'cultura', aventura: (e) => e.category === 'aventura', bares: (e) => e.category === 'bares', outros: (e) => e.category === 'outros',
     }[filter] || (() => true);
     const list = state.events.filter(pass).filter((e) => matchScore(q, e.name, placeName(e.placeId)) > 0);
     if (!list.length) return noResults(q);
@@ -164,15 +166,29 @@ export const createFavoritesView = () => createListView({
   initialFilter: 'all',
   subtitle: () => {
     const n = state.places.filter((p) => p.favorite).length + state.events.filter((e) => e.favorite).length;
-    return plural(n, 'favorito', 'favoritos');
+    const d = state.places.filter((p) => p.isDate).length + state.events.filter((e) => e.isDate).length;
+    return `${plural(n, 'favorito', 'favoritos')} · ${plural(d, 'date', 'dates')}`;
   },
   filters: () => [
     ['all', 'Todos'],
     ['place', 'Locais', state.places.filter((p) => p.favorite).length],
     ['event', 'Eventos', state.events.filter((e) => e.favorite).length],
+    ['date', '♥ Date', state.places.filter((p) => p.isDate).length + state.events.filter((e) => e.isDate).length],
   ],
   renderList: ({ q, filter }) => {
     const now = Date.now();
+    if (filter === 'date') {
+      const dp = filterAndRank(state.places.filter((p) => p.isDate), q, (p) => [p.name, p.address], byName);
+      const de = filterAndRank(state.events.filter((e) => e.isDate), q, (e) => [e.name, placeName(e.placeId)], (a, b) => (a.start ?? Infinity) - (b.start ?? Infinity));
+      if (!dp.length && !de.length) {
+        if (state.places.some((p) => p.isDate) || state.events.some((e) => e.isDate)) return noResults(q);
+        return html`<div class="empty"><div class="empty-ic heart">${ic('heart', 'i xl')}</div><div class="empty-title">Nenhum Date ainda</div><div class="empty-text">Toque no ♥ ao lado de um local ou evento para guardar aqui ideias de date.</div></div>`;
+      }
+      const upd = upcomingByPlace(now);
+      return html`
+        ${dp.length ? section('Locais para date', dp.map((p) => placeRow(p, upd.get(p.id))), dp.length) : ''}
+        ${de.length ? section('Eventos para date', de.map((e) => eventRow(e, now)), de.length) : ''}`;
+    }
     const places = filter === 'all' || filter === 'place'
       ? filterAndRank(state.places.filter((p) => p.favorite), q, (p) => [p.name, p.address], byName) : [];
     const events = filter === 'all' || filter === 'event'
@@ -195,7 +211,7 @@ const HIST_GROUP = { place: 'place', visit: 'place', event: 'event', commitment:
 
 function histRow(h, now) {
   const imported = h.source === 'import';
-  const when = imported ? (h.start != null ? `${fmtDateShort(h.start, now)}` : 'feito') : h.start != null ? fmtRange(h.start, h.end) : `marcado às ${fmtHM(h.at)}`;
+  const when = imported ? (h.start != null ? `${fmtDateShort(h.start, now)}` : 'feito') : h.dateOnly ? 'visitado' : h.start != null ? fmtRange(h.start, h.end) : `marcado às ${fmtHM(h.at)}`;
   const kindTxt = h.kind === 'place' ? 'Local visitado' : h.kind === 'visit' ? 'Visita a local' : h.kind === 'item' ? 'Horário avulso' : KIND_LABEL[h.kind];
   return html`<button type="button" class="row hrow" data-hid="${h.id}">
     <span class="kicon k-${h.kind === 'place' ? 'visit' : h.kind}">${ic(KIND_ICON[h.kind], 'i sm')}</span>
@@ -273,6 +289,11 @@ async function openHistoryEntry(id) {
   if (occ) actions.push({ label: 'Abrir na agenda', value: 'occ', icon: 'calendar' });
   if (h.kind === 'event' && state.events.some((e) => e.id === h.refId)) actions.push({ label: 'Editar evento', value: 'event', icon: 'pencil' });
   if (h.kind === 'item' && state.items.some((i) => i.id === h.refId)) actions.push({ label: 'Editar horário', value: 'item', icon: 'pencil' });
+  const canDate = (h.kind === 'place' && state.places.some((p) => p.id === h.placeId))
+    || (h.kind === 'event' && state.events.some((e) => e.id === h.refId))
+    || (h.kind === 'visit' && state.visits.some((v) => v.id === h.refId))
+    || (h.kind === 'item' && state.items.some((i) => i.id === h.refId));
+  if (canDate) actions.unshift({ label: 'Alterar a data em que foi feito', value: 'redate', icon: 'calendar' });
   actions.push({ label: occ ? 'Não aconteceu (remover)' : 'Remover do histórico', value: 'remove', icon: 'trash', style: 'destructive' });
   const when = h.source === 'import' ? 'Importado da sua lista anterior (data não informada)'
     : h.start != null ? `${dayLabel(h.start)} · ${fmtRange(h.start, h.end)}` : `Marcado em ${fmtDateShort(h.at)} às ${fmtHM(h.at)}`;
@@ -282,6 +303,12 @@ async function openHistoryEntry(id) {
   if (v === 'occ') openOccurrenceSheet(occKey);
   if (v === 'event') openEventForm({ id: h.refId });
   if (v === 'item') openItemForm({ id: h.refId });
+  if (v === 'redate') {
+    if (h.kind === 'place') openVisitedDateSheet(h.placeId);
+    else if (h.kind === 'event') openEventForm({ id: h.refId });
+    else if (h.kind === 'visit') openVisitForm({ id: h.refId });
+    else if (h.kind === 'item') openItemForm({ id: h.refId });
+  }
   if (v === 'remove') {
     const ok = await confirmDialog({ title: 'Remover do histórico?', message: occ ? 'O item fica marcado como “não aconteceu”.' : h.kind === 'place' ? 'O local volta a ficar como “não visitado”.' : 'O registro será apagado.', ok: 'Remover', destructive: true });
     if (!ok) return;
@@ -290,4 +317,27 @@ async function openHistoryEntry(id) {
     else await deleteHistory(id);
     toast('Removido do histórico', { icon: 'trash' });
   }
+}
+
+/** escolher a data em que um local foi visitado */
+function openVisitedDateSheet(placeId) {
+  const p = state.places.find((x) => x.id === placeId);
+  if (!p) return;
+  const today = dateKey(Date.now());
+  openSheet({
+    title: 'Data da visita',
+    right: 'Salvar',
+    className: 'auto-sheet',
+    body: html`<form class="form" novalidate>
+      <div class="occ-mini k-visit"><b>${p.name}</b><span>${p.visitedAt ? `Data atual: ${fmtDateShort(p.visitedAt)}` : 'Ainda sem data'}</span></div>
+      <div class="form-group"><label class="cell"><span class="cell-ic">${ic('calendar', 'i sm')}</span><span class="lbl grow">Visitado em</span><input type="date" name="d" value="${p.visitedAt ? dateKey(p.visitedAt) : today}" max="${today}"></label></div>
+    </form>`,
+    onRight: async (c) => {
+      const v = c.body.querySelector('input[name=d]').value;
+      if (!v) return false;
+      await setPlaceVisitedDate(placeId, atMinutes(v, 12 * 60));
+      toast(`Visita registrada em ${fmtDateShort(atMinutes(v, 12 * 60))}`, { icon: 'check' });
+      return true;
+    },
+  });
 }

@@ -227,13 +227,35 @@ export async function setPlaceVisited(id, visited) {
 
 const STORE_OF = { place: 'places', event: 'events' }; // compromissos não têm favorito
 
-export async function toggleFavorite(kind, id) {
+async function toggleFlag(kind, id, field) {
   const store = STORE_OF[kind];
-  const item = state[store].find((x) => x.id === id);
+  const item = store && state[store].find((x) => x.id === id);
   if (!item) return false;
-  const favorite = !item.favorite;
-  await commit([put(store, { ...item, favorite, updatedAt: Date.now() })]);
-  return favorite;
+  const on = !item[field];
+  await commit([put(store, { ...item, [field]: on, updatedAt: Date.now() })]);
+  return on;
+}
+
+export const toggleFavorite = (kind, id) => toggleFlag(kind, id, 'favorite');
+/** marca/desmarca um local ou evento como "Date" */
+export const toggleDate = (kind, id) => toggleFlag(kind, id, 'isDate');
+
+/** muda a data em que um local foi visitado (ts = meio-dia do dia escolhido) */
+export async function setPlaceVisitedDate(id, ts) {
+  const p = findPlace(id);
+  if (!p) return;
+  const now = Date.now();
+  const via = !p.visitedVia || p.visitedVia === 'import' ? 'manual' : p.visitedVia;
+  const ops = [put('places', { ...p, visited: true, visitedAt: ts, visitedVia: via, updatedAt: now })];
+  const hid = `h:place:${id}`;
+  const h = state.history.find((x) => x.id === hid);
+  if (h || via === 'manual') {
+    ops.push(put('history', {
+      ...(h || { id: hid, kind: 'place', refId: id, placeId: id, title: p.name, subtitle: p.address || '', category: p.category || null, start: null, end: null }),
+      at: ts, source: 'manual', dateOnly: true,
+    }));
+  }
+  await commit(ops);
 }
 
 // ---------- eventos e visitas ----------
@@ -245,9 +267,26 @@ async function saveScheduled(store, kind, input, defaults) {
   if (rec.start == null) { rec.start = null; rec.end = null; }
   const ops = [];
   const timeChanged = prev && (prev.start !== rec.start || prev.end !== rec.end);
+  const hid = `h:${kind}:${rec.id}`;
+  const hist = state.history.find((x) => x.id === hid);
+  const newTitle = kind === 'event' ? rec.name : kind === 'item' ? rec.title : null;
   if (timeChanged && prev.status !== 'planned') {
-    rec.status = 'planned'; rec.doneAt = null;
-    ops.push(del('history', `h:${kind}:${rec.id}`));
+    const stillPast = rec.start == null || rec.end <= now;
+    if (prev.status === 'done' && stillPast) {
+      // continua feito: só muda a data em que foi feito (e o registro no Histórico acompanha)
+      rec.doneAt = rec.end ?? prev.doneAt ?? null;
+      if (hist) {
+        ops.push(put('history', {
+          ...hist, start: rec.start, end: rec.end, at: rec.end ?? hist.at,
+          source: rec.start != null ? 'manual' : hist.source, dateOnly: false, ...(newTitle ? { title: newTitle } : {}),
+        }));
+      }
+    } else {
+      rec.status = 'planned'; rec.doneAt = null; // remarcado para o futuro
+      ops.push(del('history', hid));
+    }
+  } else if (hist && newTitle && hist.title !== newTitle) {
+    ops.push(put('history', { ...hist, title: newTitle }));
   }
   ops.push(put(store, rec));
   await commit(ops);
@@ -434,7 +473,66 @@ export function previewMerge(data) {
     events: events.length,
     done: events.filter((e) => e.done).length,
     visits: (data.visits || []).length,
+    merges: (data.mergePlaces || []).map((m) => ({ keep: m.keep, names: m.names || [] })),
   };
+}
+
+/**
+ * Junta locais repetidos num só (nome final = `keep`). Eventos, visitas e histórico dos repetidos
+ * passam para o local que fica; favorito/Date/visitado/foto/endereço são aproveitados de qualquer um deles.
+ * Retorna quantos grupos foram juntados.
+ */
+async function applyPlaceMerges(groups) {
+  let merged = 0;
+  for (const m of groups || []) {
+    const wanted = new Set([...(m.names || []), m.keep].map(norm));
+    const targets = state.places.filter((p) => wanted.has(norm(p.name)));
+    if (!targets.length) continue;
+    const score = (p) => (p.hasPhoto ? 8 : 0) + (p.address ? 4 : 0) + (norm(p.name) === norm(m.keep) ? 2 : 0)
+      + state.events.filter((e) => e.placeId === p.id).length * 0.01;
+    targets.sort((a, b) => score(b) - score(a));
+    const [keep, ...others] = targets;
+    const now = Date.now();
+    const pick = (f) => keep[f] || others.map((o) => o[f]).find(Boolean) || null;
+    const visitedAt = [keep, ...others].map((p) => p.visitedAt).filter(Boolean).sort((a, b) => a - b)[0] || null;
+    const survivor = {
+      ...keep, name: m.keep,
+      address: pick('address') || '', category: pick('category'),
+      favorite: targets.some((p) => p.favorite), isDate: targets.some((p) => p.isDate),
+      visited: targets.some((p) => p.visited), visitedAt,
+      visitedVia: keep.visitedVia || others.map((o) => o.visitedVia).find(Boolean) || null,
+      updatedAt: now,
+    };
+    const ops = [];
+    if (!keep.hasPhoto) {
+      const withPhoto = others.find((o) => o.hasPhoto);
+      if (withPhoto) {
+        const full = await getPhoto(withPhoto.id);
+        if (full) { ops.push(put('photos', { id: keep.id, full })); survivor.hasPhoto = true; survivor.thumb = withPhoto.thumb; }
+      }
+    }
+    ops.push(put('places', survivor));
+    const ids = new Set(others.map((o) => o.id));
+    for (const e of state.events) if (ids.has(e.placeId)) ops.push(put('events', { ...e, placeId: keep.id, updatedAt: now }));
+    for (const v of state.visits) if (ids.has(v.placeId)) ops.push(put('visits', { ...v, placeId: keep.id, updatedAt: now }));
+    const keepHist = state.history.find((h) => h.id === `h:place:${keep.id}`);
+    for (const h of state.history) {
+      if (!ids.has(h.placeId)) continue;
+      if (h.kind === 'place') {
+        ops.push(del('history', h.id));
+        if (!keepHist && survivor.visited && !ops.some((o) => o.value?.id === `h:place:${keep.id}`)) {
+          ops.push(put('history', { ...h, id: `h:place:${keep.id}`, refId: keep.id, placeId: keep.id, title: survivor.name }));
+        }
+      } else {
+        ops.push(put('history', { ...h, placeId: keep.id, subtitle: h.kind === 'event' ? survivor.name : h.subtitle }));
+      }
+    }
+    if (keepHist) ops.push(put('history', { ...keepHist, title: survivor.name }));
+    for (const o of others) { ops.push(del('places', o.id)); ops.push(del('photos', o.id)); }
+    await commit(ops);
+    if (others.length) merged++;
+  }
+  return merged;
 }
 
 /**
@@ -448,8 +546,9 @@ export async function mergeImport(data) {
   if (!data || data.app !== 'agentonator' || data.kind !== 'merge') throw new Error('Este arquivo não é uma lista do Agentonator.');
   const now = Date.now();
   const ops = [];
-  const summary = { placesAdded: 0, placesSkipped: 0, eventsAdded: 0, eventsSkipped: 0, visitsAdded: 0, visitsSkipped: 0 };
-  const CATS = ['cultura', 'aventura', 'outros'];
+  const summary = { placesAdded: 0, placesSkipped: 0, eventsAdded: 0, eventsSkipped: 0, visitsAdded: 0, visitsSkipped: 0, merged: 0 };
+  summary.merged = await applyPlaceMerges(data.mergePlaces);
+  const CATS = ['cultura', 'aventura', 'bares', 'outros'];
   const toTime = (s) => { if (!s) return null; const t = new Date(s).getTime(); return Number.isFinite(t) ? t : null; };
 
   const placeByName = new Map(state.places.map((p) => [norm(p.name), p]));
@@ -463,7 +562,7 @@ export async function mergeImport(data) {
     if (existing) { resolved.set(key, existing); summary.placesSkipped++; continue; }
     const p = {
       id: uid(), name, address: String(ip.address || '').trim(), category: CATS.includes(ip.category) ? ip.category : null,
-      favorite: !!ip.favorite, visited: !!ip.visited, visitedAt: null, visitedVia: ip.visited ? 'import' : null,
+      favorite: !!ip.favorite, isDate: !!ip.isDate, visited: !!ip.visited, visitedAt: null, visitedVia: ip.visited ? 'import' : null,
       thumb: null, hasPhoto: false, createdAt: now, updatedAt: now,
     };
     ops.push({ type: 'put', store: 'places', value: p });
@@ -488,7 +587,7 @@ export async function mergeImport(data) {
     eventKeys.add(k);
     const start = toTime(ie.start);
     const e = {
-      id: uid(), name, placeId: place.id, category: CATS.includes(ie.category) ? ie.category : null, favorite: !!ie.favorite,
+      id: uid(), name, placeId: place.id, category: CATS.includes(ie.category) ? ie.category : null, favorite: !!ie.favorite, isDate: !!ie.isDate,
       start, end: start != null ? start + (Number(ie.durationMin) || 120) * 60_000 : null,
       status: ie.done ? 'done' : 'planned', doneAt: null, createdAt: now, updatedAt: now,
     };

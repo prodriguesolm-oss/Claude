@@ -1,7 +1,7 @@
 // Linhas de lista compartilhadas entre as abas + ações comuns (favoritar, visitado, abrir).
 import { html, ic, toast } from './ui.js';
-import { state, toggleFavorite, setPlaceVisited } from './store.js';
-import { placeThumb, catBadge, starBtn } from './widgets.js';
+import { state, toggleFavorite, toggleDate, setPlaceVisited } from './store.js';
+import { placeThumb, catBadge, starBtn, dateBtn } from './widgets.js';
 import { dayLabel, fmtHM, fmtRange, MONTHS_SHORT, WD_CAP, fmtMin, fmtDateShort, dateKey, parseDateKey } from './time.js';
 import { nextOccurrence, FREQ_LABEL } from './schedule.js';
 import { KIND_ICON } from './icons.js';
@@ -28,10 +28,13 @@ export function placeRow(p, upcoming) {
     <div class="row-main">
       <div class="row-title">${p.name}</div>
       ${p.address ? html`<div class="row-sub">${p.address}</div>` : ''}
-      <div class="row-meta">${catBadge(p.category)}${p.visited ? html`<span class="badge ok">${ic('check', 'i xs')} Visitado</span>` : ''}${upcoming ? html`<span class="badge info">${ic('calendar', 'i xs')} ${dayLabel(upcoming.start)} ${fmtHM(upcoming.start)}</span>` : ''}</div>
+      <div class="row-meta">${catBadge(p.category)}${p.visited ? html`<span class="badge ok">${ic('check', 'i xs')} Visitado${p.visitedAt ? ` · ${fmtDateShort(p.visitedAt)}` : ''}</span>` : ''}${upcoming ? html`<span class="badge info">${ic('calendar', 'i xs')} ${dayLabel(upcoming.start)} ${fmtHM(upcoming.start)}</span>` : ''}</div>
     </div>
-    ${starBtn('place', p)}
-    <button type="button" class="tgl check ${p.visited ? 'on' : ''}" data-act="visited" data-id="${p.id}" aria-label="${p.visited ? 'Desmarcar visitado' : 'Marcar como visitado'}" aria-pressed="${p.visited ? 'true' : 'false'}">${ic(p.visited ? 'checkCircleFill' : 'checkCircle')}</button>
+    <div class="tgls">
+      ${starBtn('place', p)}
+      ${dateBtn('place', p)}
+      <button type="button" class="tgl check ${p.visited ? 'on' : ''}" data-act="visited" data-id="${p.id}" aria-label="${p.visited ? 'Desmarcar visitado' : 'Marcar como visitado'}" aria-pressed="${p.visited ? 'true' : 'false'}">${ic(p.visited ? 'checkCircleFill' : 'checkCircle')}</button>
+    </div>
   </div>`;
 }
 
@@ -50,7 +53,7 @@ export function eventRow(e, now = Date.now()) {
       <div class="row-sub">${ic('pin', 'i xs')} ${p?.name || 'Local removido'}</div>
       <div class="row-meta">${sched ? html`<span class="badge">${dayLabel(e.start, now)} · ${fmtRange(e.start, e.end)}</span>` : ''}${catBadge(e.category)}${done ? html`<span class="badge ok">${ic('check', 'i xs')} Feito</span>` : ''}${e.status === 'missed' ? html`<span class="badge">Não aconteceu</span>` : ''}${live ? html`<span class="badge live">Agora</span>` : ''}</div>
     </div>
-    ${starBtn('event', e)}
+    <div class="tgls">${starBtn('event', e)}${dateBtn('event', e)}</div>
   </div>`;
 }
 
@@ -123,6 +126,12 @@ export async function handleRowAction(t) {
       const on = await toggleFavorite(t.dataset.kind, id);
       haptic();
       toast(on ? 'Adicionado aos favoritos' : 'Removido dos favoritos', { icon: 'star' });
+      return true;
+    }
+    case 'date': {
+      const on = await toggleDate(t.dataset.kind, id);
+      haptic();
+      toast(on ? 'Marcado como Date ♥' : 'Removido dos Dates', { icon: 'heart' });
       return true;
     }
     case 'visited': {
