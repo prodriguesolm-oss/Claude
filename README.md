@@ -129,4 +129,6 @@ server/                                   servidor de notificações (Cloudflare
 tests/                                    testes
 ```
 
-Ao publicar uma nova versão, altere `VERSION` em `sw.js` para que os iPhones baixem os arquivos novos.
+Ao publicar uma nova versão, altere `VERSION` em `sw.js` **e** `APP_VERSION` em `js/version.js`. O app procura
+atualização sempre que volta para a tela e reinicia sozinho quando a versão nova assume (esperando fechar
+qualquer janela aberta). Em Ajustes há "Procurar atualização" e o número da versão instalada.

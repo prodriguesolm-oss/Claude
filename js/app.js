@@ -112,6 +112,34 @@ window.addEventListener('unhandledrejection', (e) => {
   });
 });
 
+// ---------- atualizações ----------
+// O iPhone costuma só "acordar" o app (sem recarregar), e aí ele nunca procura versão nova.
+// Por isso: procura atualização sempre que o app volta para a tela e, quando a nova versão
+// assume, recarrega sozinho (esperando fechar qualquer janela aberta, para não perder nada).
+function setupUpdates() {
+  const sw = navigator.serviceWorker;
+  const wasControlled = !!sw.controller;
+  let reloading = false;
+  sw.addEventListener('controllerchange', () => {
+    if (!wasControlled || reloading) return; // 1ª instalação: nada a recarregar
+    reloading = true;
+    const tryReload = () => {
+      if (overlayCount()) { setTimeout(tryReload, 1500); return; }
+      location.reload();
+    };
+    tryReload();
+  });
+  sw.register('./sw.js').then((reg) => {
+    const check = () => reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+    setInterval(check, 30 * 60_000);
+    window.__agentonatorCheckUpdate = async () => {
+      await reg.update();
+      return !!(reg.installing || reg.waiting);
+    };
+  }).catch((e) => console.warn('SW', e));
+}
+
 async function boot() {
   shell();
   trackVisualViewport();
@@ -139,9 +167,7 @@ async function boot() {
     }
   });
 
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('SW', e));
-  }
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') setupUpdates();
 }
 
 boot();

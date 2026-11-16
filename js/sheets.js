@@ -8,6 +8,7 @@ import {
   pushSupported, permission, pushReady, pushStatus, onPushStatus, enablePush, disablePush, sendTest, syncNow, normalizeServer,
 } from './push.js';
 import { isIOS, isStandalone } from './util.js';
+import { APP_VERSION, APP_DATE } from './version.js';
 import { openSheet, actionSheet, confirmDialog, alertDialog, toast, html, ic, setHTML } from './ui.js';
 import { placeThumb, catBadge, switchCell } from './widgets.js';
 import { openPlaceForm, openEventForm, openVisitForm, openCommitmentForm, openRescheduleForm, openItemForm } from './forms.js';
@@ -392,11 +393,12 @@ export function openSettings() {
         <button type="button" class="cell" data-act="export"><span class="cell-ic">${ic('upload', 'i sm')}</span><span class="grow"><span class="cell-title">Exportar backup</span><span class="cell-hint">${backupAgeLabel()}</span></span></button>
         <button type="button" class="cell" data-act="merge"><span class="cell-ic">${ic('list', 'i sm')}</span><span class="grow"><span class="cell-title">Importar lista</span><span class="cell-hint">Adiciona locais e eventos de um arquivo — não apaga nada</span></span></button>
         <button type="button" class="cell" data-act="import"><span class="cell-ic">${ic('download', 'i sm')}</span><span class="grow"><span class="cell-title">Restaurar backup</span><span class="cell-hint">Substitui todos os dados pelos do backup</span></span></button>
-        <input type="file" accept="application/json,.json" data-ref="importFile" hidden>
+        <input type="file" data-ref="importFile" hidden>
       </div>
       <div class="group-foot">Os dados ficam gravados no aparelho e funcionam offline. Faça um backup de vez em quando e salve no app Arquivos / iCloud Drive.</div>
       <div class="form-group"><button type="button" class="cell danger center" data-act="wipe">Apagar todos os dados</button></div>
-      <div class="about">Agentonator 1.0 · feito para iPhone</div>
+      <div class="form-group"><button type="button" class="cell" data-act="check-update"><span class="cell-ic">${ic('download', 'i sm')}</span><span class="grow"><span class="cell-title">Procurar atualização</span><span class="cell-hint">Você está na versão ${APP_VERSION} (${APP_DATE})</span></span></button></div>
+      <div class="about">Agentonator · versão ${APP_VERSION} · feito para iPhone</div>
     </form>`);
     if (typedValue != null) {
       const inp = ctl.body.querySelector('input[name=pushServer]');
@@ -470,6 +472,15 @@ export function openSettings() {
       try { await doExport(); } catch (err) { alertDialog({ title: 'Falha ao exportar', message: err.message }); }
     }
     if (act === 'import' || act === 'merge') ctl.body.querySelector('[data-ref="importFile"]').click();
+    if (act === 'check-update') {
+      try {
+        const found = await window.__agentonatorCheckUpdate?.();
+        if (found) toast('Baixando a nova versão… o app reinicia sozinho em instantes', { icon: 'download', ms: 4000 });
+        else toast(`Você já está na versão mais recente (${APP_VERSION})`, { icon: 'check' });
+      } catch {
+        toast('Sem internet agora — tente de novo depois', { icon: 'alert' });
+      }
+    }
     if (act === 'wipe') {
       const ok = await confirmDialog({ title: 'Apagar TUDO?', message: 'Todos os locais, fotos, eventos, compromissos e histórico serão apagados deste iPhone. Considere exportar um backup antes.', ok: 'Apagar tudo', destructive: true });
       if (!ok) return;
