@@ -223,6 +223,19 @@ export function planPushExisting(occs, cand) {
   return moves;
 }
 
+/**
+ * Política padrão "adiar o que vem depois": empurra, em cascata, só os itens que começam
+ * junto ou DEPOIS do candidato e antes de `until` (fim do dia). O que começou antes fica onde
+ * está (vira sobreposição, com aviso) e nada de outros dias é tocado.
+ * `prev` = intervalo antigo do candidato: o que já estava sobreposto a ele antes continua como estava.
+ */
+export function planCascade(occs, cand, { until = Infinity, prev = null } = {}) {
+  const pool = occs.filter((o) => o.key !== cand.key && blocking(o)
+    && o.start >= cand.start && o.start < until
+    && !(prev && overlaps(o, prev)));
+  return planPushExisting(pool, cand);
+}
+
 /** Política "adiar o novo": coloca o candidato no primeiro espaço livre a partir do horário pedido. */
 export function planPushNew(occs, cand) {
   const pool = occs.filter((o) => o.key !== cand.key && blocking(o));

@@ -544,3 +544,21 @@ b { font-weight: 600; }
 .empty-ic.heart { color: #ff4f7b; background: linear-gradient(145deg, rgba(255, 79, 123, .28), rgba(191, 90, 242, .16)); }
 .cell-ic.ok-ic { color: var(--green); background: rgba(48, 209, 88, .15); }
 .sheet.auto-sheet { height: auto; }
+
+/* ---------- agenda interativa: selecionar, mover e redimensionar blocos ---------- */
+.tl-grip { position: absolute; left: 50%; bottom: 3px; width: 24px; height: 3px; margin-left: -12px; border-radius: 2px; background: rgba(255, 255, 255, .4); pointer-events: none; }
+.tl-b.sel { overflow: visible; z-index: 8; touch-action: none; box-shadow: 0 0 0 2px var(--kc), 0 10px 26px rgba(0, 0, 0, .55); }
+.tl-b.sel.st-done { opacity: .85; }
+.tl-b.sel .tl-grip { display: none; }
+.tl-h { position: absolute; z-index: 3; width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 3.5px solid var(--kc); box-shadow: 0 1px 5px rgba(0, 0, 0, .55); touch-action: none; }
+.tl-h::before { content: ""; position: absolute; inset: -15px -16px; } /* área de toque ~46px */
+.tl-h-s { top: -9px; left: 14px; }
+.tl-h-e { bottom: -9px; right: 14px; }
+.tl-b.dragging { transition: box-shadow .15s; }
+.tl-b.dragging.tiny .tl-b-s { display: none; }
+.tl-b.drag-end .drag-time { top: auto; bottom: 4px; }
+.tl-b.drag-end .tl-b-rep, .tl-b.drag-end .tl-grip { display: none; }
+
+#toast.show.has-action { pointer-events: auto; }
+.toast-act { flex: none; margin: -4px -6px -4px 4px; padding: 6px 10px; border-radius: 14px; background: rgba(142, 140, 255, .2); color: var(--accent); font-size: 15px; font-weight: 700; }
+.toast-act:active { background: rgba(142, 140, 255, .35); }

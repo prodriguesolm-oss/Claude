@@ -1,12 +1,13 @@
 // Aba Agenda: junta eventos, visitas a locais e compromissos numa linha do tempo do dia
-// (ou lista das próximas semanas). Toque para editar, segure e arraste para mudar o horário.
-import { state, updateSettings } from '../store.js';
+// (ou lista das próximas semanas). Toque para abrir; segure e arraste para mover;
+// puxe a borda de baixo (ou as bolinhas do bloco selecionado) para mudar início, fim e duração.
+import { state, updateSettings, undoMoves } from '../store.js';
 import { html, ic, setHTML, $, toast } from '../ui.js';
 import { fab } from '../widgets.js';
 import { occRow } from '../rows.js';
 import { openOccurrenceSheet, openAddChooser, openSettings, doExport } from '../sheets.js';
-import { moveWithConflicts } from '../conflicts.js';
-import { expand, occByKey, layoutColumns, FREQ_LABEL } from '../schedule.js';
+import { moveWithConflicts, resolutionNotes } from '../conflicts.js';
+import { expand, occByKey, layoutColumns, FREQ_LABEL, SCOPE_LABEL } from '../schedule.js';
 import { haptic, isIOS, isStandalone } from '../util.js';
 import {
   MIN, startOfDay, addDays, startOfWeek, dateKey, parseDateKey, atMinutes, fmtDayLong, fmtRange, fmtHM,
@@ -24,6 +25,7 @@ export function createAgendaView() {
   let suppressClick = false;
   let press = null;
   let renderDeferred = false;
+  let selKey = null; // bloco selecionado (com as bolinhas de início/fim)
 
   const els = {};
 
@@ -63,6 +65,7 @@ export function createAgendaView() {
 
   function select(day) {
     selected = startOfDay(day);
+    selKey = null;
     scrollPending = true;
     update();
   }
@@ -74,10 +77,11 @@ export function createAgendaView() {
     const day = t.closest('[data-day]');
     if (day) { select(Number(day.dataset.day)); return; }
     const modeBtn = t.closest('[data-mode]');
-    if (modeBtn) { mode = modeBtn.dataset.mode; scrollPending = true; update(); return; }
+    if (modeBtn) { mode = modeBtn.dataset.mode; selKey = null; scrollPending = true; update(); return; }
     const block = t.closest('[data-key]');
     if (block) {
-      if (suppressClick) return;
+      if (suppressClick || t.closest('[data-handle]')) return;
+      deselect();
       openOccurrenceSheet(block.dataset.key);
       return;
     }
@@ -97,6 +101,7 @@ export function createAgendaView() {
     // toque num horário vazio da linha do tempo -> adicionar naquele horário
     const tl = t.closest('.tl');
     if (tl && !t.closest('.tl-b') && !suppressClick) {
+      if (deselect()) return; // tocar fora só tira a seleção
       const r = tl.getBoundingClientRect();
       const min = Math.floor((e.clientY - r.top) / PX / SNAP) * SNAP;
       if (min < 0 || min >= 1440) return;
@@ -210,10 +215,11 @@ export function createAgendaView() {
       const left = `calc(var(--tl-l) + (100% - var(--tl-l) - 8px) * ${it.col / it.cols})`;
       const width = `calc((100% - var(--tl-l) - 8px) / ${it.cols} - 3px)`;
       const sub = o.kind === 'event' ? o.subtitle : o.kind === 'visit' ? 'Visita' : o.kind === 'item' ? o.subtitle : o.recurring ? (FREQ_LABEL[o.freq] || '') : '';
-      return html`<div class="tl-b k-${o.kind} st-${o.status} ${it.conflict ? 'conflict' : ''} ${compact ? 'compact' : ''}" data-key="${o.key}" data-start="${o.start}" style="top:${top}px;height:${h}px;left:${left};width:${width}">
+      return html`<div class="tl-b k-${o.kind} st-${o.status} ${it.conflict ? 'conflict' : ''} ${compact ? 'compact' : ''}" data-key="${o.key}" data-start="${o.start}" data-end="${o.end}" data-cs="${o.start < ds ? 1 : 0}" data-ce="${o.end > de ? 1 : 0}" style="top:${top}px;height:${h}px;left:${left};width:${width}">
         <div class="tl-b-t">${it.conflict ? ic('alert', 'i xxs warn-ic') : ''}${o.status === 'done' ? ic('check', 'i xxs') : ''}${o.remind != null && (o.status === 'planned' || o.status === 'ongoing') ? ic('bell', 'i xxs bell-ic') : ''}${o.title}${compact ? html`<span class="tl-b-inline"> · ${fmtHM(o.start)}</span>` : ''}</div>
         ${compact ? '' : html`<div class="tl-b-s">${fmtRange(o.start, o.end)}${sub ? ` · ${sub}` : ''}</div>`}
         ${o.recurring ? html`<span class="tl-b-rep">${ic('repeat', 'i xxs')}</span>` : ''}
+        ${compact || o.end > de ? '' : html`<span class="tl-grip"></span>`}
       </div>`;
     });
 
@@ -222,6 +228,7 @@ export function createAgendaView() {
     setHTML(els.body, html`
       ${occs.length ? '' : html`<div class="day-empty">${ic('sparkle', 'i sm')} Dia livre. Toque num horário ou no <b>+</b> para adicionar.</div>`}
       <div class="tl" style="height:${total + 10}px">${hours}${blocks}${nowLine}</div>`);
+    syncSelection();
   }
 
   function renderList() {
@@ -279,97 +286,242 @@ export function createAgendaView() {
     });
   }
 
+  // Arrastar na linha do tempo:
+  //  - segurar o meio do bloco  -> seleciona e move (início e fim juntos)
+  //  - segurar a borda de baixo -> muda só o fim (a duração)
+  //  - bloco selecionado        -> bolinhas de início/fim e o corpo respondem na hora, sem segurar
+  // Tudo de 15 em 15 min; ao soltar, os conflitos seguem a política dos Ajustes (padrão: adiar o que vem depois).
   function bindDrag(container) {
-    const LONG = 380;
-    const label = (p) => {
-      const delta = Math.round(p.snapped / PX);
-      const s = Number(p.el.dataset.start) + delta * MIN;
+    const LONG = 350;
+    const EDGE = 16; // px da borda de baixo que redimensiona direto
+    const tlTop = () => container.querySelector('.tl').getBoundingClientRect().top;
+    const snapAbs = (t) => selected + Math.round((t - selected) / MIN / SNAP) * SNAP * MIN;
+    let raf = 0;
+
+    const paint = () => {
+      const p = press;
+      if (!p) return;
+      const raw = (p.lastY - tlTop() - p.yTl0) / PX; // minutos desde o início do gesto (acompanha a rolagem)
+      const ds = selected;
+      const de = addDays(selected, 1);
+      const step = SNAP * MIN;
+      let ns = p.s0;
+      let ne = p.e0;
+      if (Math.abs(raw) >= SNAP / 2) {
+        if (p.kind === 'move') {
+          ns = Math.min(Math.max(snapAbs(p.s0 + raw * MIN), ds), de - step);
+          ne = ns + (p.e0 - p.s0);
+        } else if (p.kind === 'end') {
+          ne = Math.min(Math.max(snapAbs(p.e0 + raw * MIN), p.s0 + step), de);
+        } else {
+          ns = Math.max(Math.min(snapAbs(p.s0 + raw * MIN), p.e0 - step), ds);
+        }
+      }
+      p.ns = ns;
+      p.ne = ne;
+      if (p.kind === 'move') {
+        p.el.style.transform = `translateY(${((ns - p.s0) / MIN) * PX}px)`;
+      } else {
+        const top = ((Math.max(ns, ds) - ds) / MIN) * PX;
+        const h = Math.max(14, ((Math.min(ne, de) - ds) / MIN) * PX - top - 2);
+        p.el.style.top = `${top}px`;
+        p.el.style.height = `${h}px`;
+        p.el.classList.toggle('tiny', h < 40);
+      }
+      const sub = p.el.querySelector('.tl-b-s');
+      if (sub) { // a linha do horário dentro do bloco acompanha ao vivo
+        if (p.sub0 == null) p.sub0 = sub.textContent;
+        sub.textContent = p.sub0.replace(/^\d\d:\d\d–\d\d:\d\d(?: \(\+\d+\))?/, fmtRange(ns, ne));
+      }
       let tag = p.el.querySelector('.drag-time');
       if (!tag) { tag = document.createElement('span'); tag.className = 'drag-time'; p.el.appendChild(tag); }
-      tag.textContent = fmtHM(s);
+      tag.textContent = p.kind === 'move' ? `${fmtHM(ns)}–${fmtHM(ne)}` : p.kind === 'end' ? `até ${fmtHM(ne)}` : `das ${fmtHM(ns)}`;
     };
-    const start = (el, x, y) => {
-      press = { el, key: el.dataset.key, x0: x, y0: y, active: false, snapped: 0 };
-      press.timer = setTimeout(() => {
-        if (!press) return;
-        press.active = true;
-        press.el.classList.add('dragging');
-        container.classList.add('drag-mode');
-        haptic();
-        label(press);
-      }, LONG);
+
+    // perto do topo/rodapé da tela, a agenda rola sozinha enquanto você arrasta
+    const autoScroll = () => {
+      raf = 0;
+      if (!press?.active) return;
+      const topEdge = els.head.getBoundingClientRect().bottom + 36;
+      const bar = document.querySelector('.tabbar');
+      const bottomEdge = (bar ? bar.getBoundingClientRect().top : root.getBoundingClientRect().bottom) - 56;
+      const travel = press.lastY - press.y0; // só rola se o dedo foi mesmo em direção à beira (segurar parado não rola)
+      let dy = 0;
+      // quanto mais perto da beira, mais rápido (de ~1,5 a 7 px por quadro)
+      if (press.lastY < topEdge && travel < -20) dy = -Math.min(7, (topEdge - press.lastY) / 10 + 1.5);
+      else if (press.lastY > bottomEdge && travel > 20) dy = Math.min(7, (press.lastY - bottomEdge) / 10 + 1.5);
+      if (dy) {
+        const before = root.scrollTop;
+        root.scrollTop = before + dy;
+        if (root.scrollTop !== before) paint();
+      }
+      raf = requestAnimationFrame(autoScroll);
     };
+
+    const activate = () => {
+      if (!press || press.active) return;
+      press.active = true;
+      if (selKey !== press.key) { selKey = press.key; syncSelection(); }
+      press.el.classList.add('dragging', `drag-${press.kind}`);
+      container.classList.add('drag-mode');
+      haptic();
+      paint();
+      if (!raf) raf = requestAnimationFrame(autoScroll);
+    };
+
+    const begin = (el, x, y, target) => {
+      const handle = target.closest?.('[data-handle]');
+      const isSel = el.classList.contains('sel');
+      const r = el.getBoundingClientRect();
+      let kind = 'move';
+      if (handle) kind = handle.dataset.handle;
+      else if (r.height >= 44 && y > r.bottom - EDGE && el.dataset.ce !== '1') kind = 'end'; // borda de baixo: duração
+      else if (isSel && r.height >= 44 && y < r.top + 10 && el.dataset.cs !== '1') kind = 'start'; // selecionado: borda de cima
+      press = {
+        el, key: el.dataset.key, kind, x0: x, y0: y, lastY: y, yTl0: y - tlTop(),
+        s0: Number(el.dataset.start), e0: Number(el.dataset.end),
+        top0: el.style.top, h0: el.style.height,
+        active: false, immediate: isSel,
+      };
+      press.ns = press.s0;
+      press.ne = press.e0;
+      if (!isSel) press.timer = setTimeout(activate, LONG);
+    };
+
     const move = (x, y, e) => {
       if (!press) return;
+      press.lastY = y;
       if (!press.active) {
-        if (Math.abs(x - press.x0) > 8 || Math.abs(y - press.y0) > 8) { clearTimeout(press.timer); press = null; }
-        return;
+        const dx = Math.abs(x - press.x0);
+        const dy = Math.abs(y - press.y0);
+        if (press.immediate) {
+          if (e.cancelable) e.preventDefault();
+          if (dx > 4 || dy > 4) activate(); else return;
+        } else {
+          if (dx > 8 || dy > 8) { clearTimeout(press.timer); press = null; } // era rolagem
+          return;
+        }
       }
       if (e.cancelable) e.preventDefault();
-      const snapPx = SNAP * PX;
-      press.snapped = Math.round((y - press.y0) / snapPx) * snapPx;
-      press.el.style.transform = `translateY(${press.snapped}px)`;
-      label(press);
+      paint();
     };
-    const reset = () => {
+
+    const restore = (p) => {
+      p.el.classList.remove('dragging', 'drag-move', 'drag-end', 'drag-start', 'tiny');
+      p.el.style.transform = '';
+      p.el.style.top = p.top0;
+      p.el.style.height = p.h0;
+      p.el.querySelector('.drag-time')?.remove();
+      if (p.sub0 != null) { const sub = p.el.querySelector('.tl-b-s'); if (sub) sub.textContent = p.sub0; }
       container.classList.remove('drag-mode');
       if (renderDeferred) { renderDeferred = false; update(); }
     };
+
     const end = async (e) => {
       if (!press) return;
       clearTimeout(press.timer);
       const p = press;
       press = null;
-      if (!p.active) return;
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      if (!p.active) return; // foi só um toque: o clique abre a ficha
       if (e?.cancelable) e.preventDefault();
       suppressClick = true;
       setTimeout(() => { suppressClick = false; }, 450);
-      const delta = Math.round(p.snapped / PX);
-      if (!delta) {
-        p.el.classList.remove('dragging');
-        p.el.style.transform = '';
-        p.el.querySelector('.drag-time')?.remove();
-        reset();
-        return;
-      }
+      if (p.ns === p.s0 && p.ne === p.e0) { restore(p); coach(); return; }
       container.classList.remove('drag-mode');
       const occ = occByKey(state, p.key);
-      if (!occ) { reset(); update(); return; }
-      const res = await moveWithConflicts(occ, occ.start + delta * MIN, occ.end + delta * MIN);
-      renderDeferred = false;
-      update();
-      if (res && !res.policy) toast(`${occ.title}: ${fmtRange(res.start, res.end)}${occ.recurring ? ' (só nesta semana)' : ''}`, { icon: 'clock' });
+      if (!occ) { renderDeferred = false; update(); return; }
+      let res = false;
+      try {
+        res = await moveWithConflicts(occ, p.ns, p.ne, { drag: true, quiet: true });
+      } finally {
+        renderDeferred = false;
+        update();
+      }
+      if (res) announce(occ, res, p.kind);
     };
+
+    const cancel = () => {
+      if (!press) return;
+      clearTimeout(press.timer);
+      const p = press;
+      press = null;
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      restore(p);
+    };
+
     container.addEventListener('touchstart', (e) => {
       const el = e.target.closest('.tl-b');
-      if (!el || e.touches.length > 1) return;
-      start(el, e.touches[0].clientX, e.touches[0].clientY);
+      if (!el || e.touches.length > 1) { if (press && !press.active) cancel(); return; }
+      begin(el, e.touches[0].clientX, e.touches[0].clientY, e.target);
     }, { passive: true });
     container.addEventListener('touchmove', (e) => {
       if (!press) return;
       move(e.touches[0].clientX, e.touches[0].clientY, e);
     }, { passive: false });
     container.addEventListener('touchend', end);
-    container.addEventListener('touchcancel', () => {
-      if (!press) return;
-      clearTimeout(press.timer);
-      const p = press; press = null;
-      p.el.classList.remove('dragging');
-      p.el.style.transform = '';
-      reset();
-    });
+    container.addEventListener('touchcancel', cancel);
     container.addEventListener('contextmenu', (e) => { if (e.target.closest('.tl-b')) e.preventDefault(); });
     // mouse (para testar no computador)
     container.addEventListener('mousedown', (e) => {
       if (e.button !== 0 || ('ontouchstart' in window && navigator.maxTouchPoints > 0)) return;
       const el = e.target.closest('.tl-b');
       if (!el) return;
-      start(el, e.clientX, e.clientY);
+      begin(el, e.clientX, e.clientY, e.target);
       const mm = (ev) => move(ev.clientX, ev.clientY, ev);
       const mu = (ev) => { window.removeEventListener('mousemove', mm); window.removeEventListener('mouseup', mu); end(ev); };
       window.addEventListener('mousemove', mm);
       window.addEventListener('mouseup', mu);
     });
+  }
+
+  /** aviso depois de arrastar, com "Desfazer" */
+  function announce(occ, res, kind) {
+    const what = kind === 'end' ? `${occ.title} até ${fmtHM(res.end)}`
+      : kind === 'start' ? `${occ.title} a partir das ${fmtHM(res.start)}`
+        : `${occ.title}: ${fmtRange(res.start, res.end)}`;
+    const scope = occ.recurring ? ` · só ${SCOPE_LABEL[occ.freq] || 'desta vez'}` : '';
+    const notes = resolutionNotes(res).map((n) => ` · ${n}`).join('');
+    toast(`${what}${scope}${notes}`, {
+      icon: res.leftover?.length ? 'alert' : 'clock',
+      action: res.undo ? {
+        label: 'Desfazer',
+        onClick: async () => { await undoMoves(res.undo); toast('Desfeito — voltou como estava', { icon: 'undo' }); },
+      } : null,
+    });
+  }
+
+  /** nas primeiras vezes que um bloco é selecionado, explica o que dá para fazer */
+  function coach() {
+    try {
+      const n = Number(localStorage.getItem('agentonator.dragTip') || 0);
+      if (n >= 3) return;
+      localStorage.setItem('agentonator.dragTip', String(n + 1));
+    } catch { return; }
+    toast('Arraste o bloco para mover · puxe as bolinhas para mudar início ou fim', { icon: 'grip', ms: 4200 });
+  }
+
+  /** aplica (ou remove) o destaque e as bolinhas do bloco selecionado */
+  function syncSelection() {
+    root.querySelectorAll('.tl-b.sel').forEach((b) => {
+      if (b.dataset.key === selKey) return;
+      b.classList.remove('sel');
+      b.querySelectorAll('.tl-h').forEach((h) => h.remove());
+    });
+    if (!selKey) return;
+    const el = [...root.querySelectorAll('.tl-b')].find((b) => b.dataset.key === selKey);
+    if (!el) { selKey = null; return; }
+    if (el.classList.contains('sel')) return;
+    el.classList.add('sel');
+    if (el.dataset.cs !== '1') el.insertAdjacentHTML('beforeend', '<span class="tl-h tl-h-s" data-handle="start" aria-label="Arrastar o início"></span>');
+    if (el.dataset.ce !== '1') el.insertAdjacentHTML('beforeend', '<span class="tl-h tl-h-e" data-handle="end" aria-label="Arrastar o fim"></span>');
+  }
+
+  function deselect() {
+    if (!selKey) return false;
+    selKey = null;
+    syncSelection();
+    return true;
   }
 
   return {

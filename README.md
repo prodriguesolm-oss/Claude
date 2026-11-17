@@ -51,16 +51,23 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
   local nem compromisso), **Evento**, **Local (visita)** ou **Compromisso**. Tocar num horário vazio da linha do
   tempo já abre o menu com aquele horário.
 - **Tocar num bloco** abre a ficha: adiar (+15 min, +1 h, +1 dia, +1 semana), antecipar, escolher outro horário,
-  marcar como feito / "não aconteceu", cancelar só aquela semana, editar.
-- **Segurar e arrastar** um bloco muda o horário (de 15 em 15 minutos).
+  marcar como feito / "não aconteceu", cancelar só aquela vez, editar.
+- **Arrastar direto na agenda** (de 15 em 15 min, sem abrir o item):
+  - **segurar a borda de baixo** de um bloco e arrastar muda só o **fim** (a duração) — ex.: o trabalho de 10–13
+    passa a terminar 12:00 só naquele dia;
+  - **segurar o meio** do bloco seleciona e **move** (início e fim juntos);
+  - o bloco selecionado ganha duas **bolinhas** (início e fim) e passa a responder na hora, sem segurar;
+    tocar fora tira a seleção;
+  - perto do topo ou do rodapé da tela a agenda rola sozinha; depois de cada arraste aparece **Desfazer**.
 - **Deslizar para os lados** troca de dia (na faixa da semana, troca de semana). Tocar no mês abre o calendário.
 - **Compromissos recorrentes** (diários, semanais, mensais): alterar uma ocorrência (ex.: adiar a terapia de
   amanhã em 24 h) vale **só para aquela vez**. As outras continuam no horário de sempre, e nenhum compromisso
   duplicado é criado. Dá para "voltar ao horário de sempre" a qualquer momento.
 - **Mensais** usam o dia do mês (ex.: dia 5). Dias 29–31 caem no último dia nos meses mais curtos.
-- **Conflitos de horário**: quando algo novo cai em cima de um horário ocupado, o app avisa e oferece
-  *adiar o que já estava marcado* (em cascata), *colocar o novo depois* ou *manter sobreposto*. Em **Ajustes**
-  você define um comportamento padrão. Blocos sobrepostos ficam listrados com ⚠.
+- **Conflitos de horário**: por padrão, quando um item passa a cobrir outro, **o que vem depois é adiado em
+  cascata, só naquele dia** (trabalho esticado até 13:15 → o almoço das 13:00 vai para 13:15, e assim por diante).
+  O que começou antes não é empurrado: fica sobreposto (listrado, com ⚠) e o app avisa. Em **Ajustes** dá para
+  trocar por *perguntar sempre*, *adiar o novo* ou *permitir sobreposição*.
 
 ### Notificações
 - Em qualquer item com horário (evento, visita a local, horário avulso, compromisso), toque no **sino**

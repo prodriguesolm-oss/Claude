@@ -240,3 +240,43 @@ test('lembretes: só itens com notificação, na antecedência certa, ignorando 
   assert.equal(byId['commitment:c1:s1|2026-11-17'].at, T(TUE, '09:30'));
   assert.ok(r.every((x, i) => i === 0 || r[i - 1].at <= x.at));
 });
+
+// ---------- cascata do dia (arrastar na agenda) ----------
+import { planCascade } from '../js/schedule.js';
+
+test('cascata: esticar o trabalho 15 min adia o almoço e o que vem logo depois, só naquele dia', () => {
+  const mk = (key, dk, a, b) => ({ key, start: T(dk, a), end: T(dk, b), status: 'planned' });
+  const occs = [
+    mk('trabalho', MON, '10:00', '13:00'),
+    mk('almoco', MON, '13:00', '14:00'),
+    mk('reuniao', MON, '14:00', '15:00'),
+    mk('jantar', MON, '20:00', '21:00'),
+    mk('amanha', TUE, '00:10', '01:00'),
+  ];
+  const cand = { key: 'trabalho', start: T(MON, '10:00'), end: T(MON, '13:15') };
+  const moves = planCascade(occs, cand, { until: T(TUE, '00:00'), prev: occs[0] });
+  assert.deepEqual(moves.map((m) => [m.occ.key, m.start, m.end]), [
+    ['almoco', T(MON, '13:15'), T(MON, '14:15')],
+    ['reuniao', T(MON, '14:15'), T(MON, '15:15')],
+  ]);
+});
+
+test('cascata: o que começou antes não é empurrado (fica sobreposto)', () => {
+  const trabalho = { key: 'trabalho', start: T(MON, '10:00'), end: T(MON, '13:00'), status: 'planned' };
+  const almocoAntes = { key: 'almoco', start: T(MON, '13:00'), end: T(MON, '14:00') };
+  // almoço arrastado para 12:00–13:00, em cima do fim do trabalho
+  const moves = planCascade([trabalho], { key: 'almoco', start: T(MON, '12:00'), end: T(MON, '13:00') }, { until: T(TUE, '00:00'), prev: almocoAntes });
+  assert.deepEqual(moves, []);
+});
+
+test('cascata: não mexe em itens de outro dia, nem no que já estava sobreposto antes, nem no que já foi feito', () => {
+  const mk = (key, dk, a, b, status = 'planned') => ({ key, start: T(dk, a), end: T(dk, b), status });
+  const occs = [
+    mk('ja-sobreposto', MON, '12:30', '13:30'),
+    mk('feito', MON, '13:00', '13:30', 'done'),
+    mk('amanha', TUE, '00:00', '01:00'),
+  ];
+  const prev = { start: T(MON, '10:00'), end: T(MON, '13:00') };
+  const virada = planCascade(occs, { key: 'x', start: T(MON, '10:00'), end: T(TUE, '00:30') }, { until: T(TUE, '00:00'), prev });
+  assert.deepEqual(virada, []);
+});

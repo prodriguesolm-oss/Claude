@@ -7,7 +7,9 @@ import { sweep, applyMove, historyFor, historyId } from './schedule.js';
 import { uid, norm } from './util.js';
 
 export const DEFAULT_SETTINGS = {
-  conflictPolicy: 'ask', // 'ask' | 'push-existing' | 'push-new' | 'overlap'
+  // 'cascade' (adiar o que vem depois, no mesmo dia) | 'ask' | 'push-new' | 'overlap'
+  // ('push-existing', nome antigo, é tratado como 'cascade')
+  conflictPolicy: 'cascade',
   installHintDismissed: false,
   lastBackupAt: null, // data do último "Exportar backup"
   backupSnoozeUntil: 0, // lembrete de backup adiado até
@@ -119,6 +121,12 @@ export async function init() {
         state.restoredFromMirror = true;
       }
     } catch (e) { console.warn('mirror', e); }
+  }
+
+  // O padrão de conflitos passou a ser "adiar o que vem depois"; aplica uma única vez a quem já usava o app.
+  const rawSettings = (data.meta || []).find((m) => m.key === 'settings')?.value;
+  if (!rawSettings || rawSettings.policyRev !== 2) {
+    await commit([put('meta', { key: 'settings', value: { ...state.settings, conflictPolicy: 'cascade', policyRev: 2 } })], { silent: true });
   }
 
   if (!state.lastSweep) await commit([put('meta', { key: 'lastSweep', value: Date.now() })], { silent: true });
@@ -327,20 +335,39 @@ export async function deleteCommitment(id) { await commit([del('commitments', id
 
 // ---------- ações sobre ocorrências da agenda ----------
 
-/** moves: [{occ, start, end}] aplicados numa única transação */
+/**
+ * moves: [{occ, start, end}] aplicados numa única transação.
+ * Retorna um "recibo" para desfazer com undoMoves().
+ */
 export async function applyMoves(moves) {
-  if (!moves.length) return;
+  if (!moves.length) return null;
   const now = Date.now();
   const working = { ...state, events: [...state.events], visits: [...state.visits], items: [...state.items], commitments: [...state.commitments] };
   const changed = new Map();
   const ops = [];
+  const undo = { records: new Map(), history: new Map() };
   for (const m of moves) {
+    const hid = historyId(m.occ);
+    if (!undo.history.has(hid)) undo.history.set(hid, state.history.find((h) => h.id === hid) || null);
     const { store, value, clearedHistory } = applyMove(working, m.occ, m.start, m.end, now);
+    const k = `${store}:${value.id}`;
+    if (!undo.records.has(k)) undo.records.set(k, { store, value: state[store].find((x) => x.id === value.id) });
     working[store] = working[store].map((x) => (x.id === value.id ? value : x));
-    changed.set(`${store}:${value.id}`, put(store, value));
+    changed.set(k, put(store, value));
     if (clearedHistory) ops.push(del('history', clearedHistory));
   }
   await commit([...changed.values(), ...ops]);
+  await runSweep();
+  return undo;
+}
+
+/** desfaz um applyMoves: devolve os registros (e o histórico deles) ao que eram antes */
+export async function undoMoves(undo) {
+  if (!undo) return;
+  const ops = [];
+  for (const { store, value } of undo.records.values()) if (value) ops.push(put(store, value));
+  for (const [hid, h] of undo.history) ops.push(h ? put('history', h) : del('history', hid));
+  await commit(ops);
   await runSweep();
 }
 

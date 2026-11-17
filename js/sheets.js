@@ -150,7 +150,7 @@ export function openOccurrenceSheet(key) {
         <button type="button" data-shift="-1440">−1 dia</button>
         <button type="button" data-act="resched" class="accent-btn">Outro…</button>
       </div>
-      <div class="group-foot qa-foot">${occ.recurring ? `Mudanças aqui valem só ${SCOPE_LABEL[occ.freq]} — as outras ocorrências continuam no horário de sempre.` : 'Dica: na agenda, segure um bloco e arraste para mudar o horário.'}</div>
+      <div class="group-foot qa-foot">${occ.recurring ? `Mudanças aqui valem só ${SCOPE_LABEL[occ.freq]} — as outras ocorrências continuam no horário de sempre.` : 'Dica: na agenda, segure o bloco e arraste para mover; puxe a borda de baixo para mudar a duração.'}</div>
       <div class="form-group">
         ${occ.overridden ? html`<button type="button" class="cell" data-act="restore"><span class="cell-ic">${ic('undo', 'i sm')}</span><span class="grow">Voltar ao horário de sempre</span></button>` : ''}
         ${statusCells.map(([v, icn, label]) => html`<button type="button" class="cell" data-status="${v}"><span class="cell-ic">${ic(icn, 'i sm')}</span><span class="grow">${label}</span></button>`)}
@@ -280,11 +280,12 @@ export async function openAddChooser(start) {
 // ---------- ajustes ----------
 
 const POLICIES = [
+  ['cascade', 'Adiar o que vem depois', 'Empurra os próximos itens do mesmo dia. O que começou antes fica sobreposto, com aviso'],
   ['ask', 'Perguntar sempre', 'Mostra as opções a cada conflito'],
-  ['push-existing', 'Adiar o que já estava marcado', 'O novo fica no horário; o antigo vai para depois'],
-  ['push-new', 'Adiar o novo', 'O novo vai para o primeiro horário livre'],
+  ['push-new', 'Adiar o novo', 'O novo vai para o primeiro horário livre (ao arrastar na agenda, vale "adiar o que vem depois")'],
   ['overlap', 'Permitir sobreposição', 'Salva os dois e só avisa na agenda'],
 ];
+const currentPolicy = (s) => (s.conflictPolicy === 'push-existing' ? 'cascade' : s.conflictPolicy);
 
 /** gera o arquivo de backup e abre a folha de compartilhar (Salvar em Arquivos). Retorna true se exportou. */
 export async function doExport() {
@@ -385,7 +386,7 @@ export function openSettings() {
     const counts = `${state.places.length} locais · ${state.events.length} eventos · ${state.commitments.length} compromissos · ${state.items.length} avulsos · ${state.history.length} no histórico`;
     setHTML(ctl.body, html`<form class="form" onsubmit="return false">
       <div class="group-label">Conflitos de horário</div>
-      <div class="form-group">${POLICIES.map(([v, label, hint]) => html`<button type="button" class="cell radio" data-policy="${v}"><span class="grow"><span class="cell-title">${label}</span><span class="cell-hint">${hint}</span></span>${s.conflictPolicy === v ? ic('check', 'i accent') : ''}</button>`)}</div>
+      <div class="form-group">${POLICIES.map(([v, label, hint]) => html`<button type="button" class="cell radio" data-policy="${v}"><span class="grow"><span class="cell-title">${label}</span><span class="cell-hint">${hint}</span></span>${currentPolicy(s) === v ? ic('check', 'i accent') : ''}</button>`)}</div>
       ${notificationsHtml(s)}
       <div class="group-label">Seus dados</div>
       <div class="form-group">

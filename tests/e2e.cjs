@@ -31,6 +31,8 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   assert(await page.locator('.hint-card').count() === 1, 'aviso de instalação aparece no iPhone (Safari)');
   await shot('01-agenda-hint');
   await page.click('[data-act="dismiss-hint"]');
+  // este roteiro cobre o modo "Perguntar sempre"; o padrão ("adiar o que vem depois") é coberto em tests/agenda-drag.cjs
+  await page.evaluate(async () => (await import('./js/store.js')).updateSettings({ conflictPolicy: 'ask' }));
 
   // ---------- Locais ----------
   console.log('Locais');

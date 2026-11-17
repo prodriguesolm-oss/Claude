@@ -197,7 +197,8 @@ export function confirmDialog({ title, message, ok = 'Confirmar', cancel = 'Canc
 }
 
 let toastTimer = null;
-export function toast(message, { icon: iconName = null, ms = 2200 } = {}) {
+/** aviso rápido; `action: { label, onClick }` acrescenta um botão (ex.: Desfazer) e deixa o aviso mais tempo na tela */
+export function toast(message, { icon: iconName = null, ms = 2200, action = null } = {}) {
   let el = document.getElementById('toast');
   if (!el) {
     el = document.createElement('div');
@@ -205,10 +206,18 @@ export function toast(message, { icon: iconName = null, ms = 2200 } = {}) {
     el.setAttribute('role', 'status');
     document.body.appendChild(el);
   }
-  setHTML(el, html`${iconName ? ic(iconName) : ''}<span>${message}</span>`);
+  setHTML(el, html`${iconName ? ic(iconName) : ''}<span>${message}</span>${action ? html`<button type="button" class="toast-act">${action.label}</button>` : ''}`);
+  el.classList.toggle('has-action', !!action);
+  el.onclick = action ? (e) => {
+    if (!e.target.closest('.toast-act')) return;
+    clearTimeout(toastTimer);
+    el.classList.remove('show');
+    el.onclick = null;
+    action.onClick();
+  } : null;
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
+  toastTimer = setTimeout(() => el.classList.remove('show'), action ? Math.max(ms, 6500) : ms);
 }
 
 /** treme o elemento (validação) */
