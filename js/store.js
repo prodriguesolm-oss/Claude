@@ -3,13 +3,13 @@
 // Uma cópia de segurança (sem fotos) também fica no localStorage para recuperação.
 
 import * as db from './db.js';
-import { sweep, applyMove, historyFor, historyId } from './schedule.js';
+import { sweep, applyMove, historyFor, historyId, optGroups, optMembers, occByKey } from './schedule.js';
 import { uid, norm } from './util.js';
 
 export const DEFAULT_SETTINGS = {
-  // 'cascade' (adiar o que vem depois, no mesmo dia) | 'ask' | 'push-new' | 'overlap'
-  // ('push-existing', nome antigo, é tratado como 'cascade')
-  conflictPolicy: 'cascade',
+  // 'ask' (pergunta, com prévia de cada opção) | 'cascade' (adiar o que vem depois, no mesmo dia)
+  // | 'trim' (só encurtar o vizinho) | 'push-new' | 'overlap'  ('push-existing' = nome antigo de 'cascade')
+  conflictPolicy: 'ask',
   installHintDismissed: false,
   lastBackupAt: null, // data do último "Exportar backup"
   backupSnoozeUntil: 0, // lembrete de backup adiado até
@@ -84,10 +84,118 @@ function writeMirror() {
 
 let persistAskedThisSession = false;
 
-async function commit(ops, { silent = false } = {}) {
+// ---------- desfazer / refazer ----------
+// Toda gravação de dados é registrada automaticamente. Gravações feitas em sequência imediata
+// (uma ação que mexe em vários itens + a conclusão automática que ela dispara) viram um passo só;
+// um novo gesto na agenda sempre começa um passo novo (newUndoStep).
+const UNDOABLE = new Set(['places', 'events', 'visits', 'commitments', 'items', 'history', 'photos']);
+const GROUP_MS = 400;
+const MAX_STEPS = 40;
+const undoStack = [];
+const redoStack = [];
+let openGroup = null;
+const undoListeners = new Set();
+export function onUndoChange(fn) { undoListeners.add(fn); return () => undoListeners.delete(fn); }
+export const canUndo = () => undoStack.length > 0;
+export const canRedo = () => redoStack.length > 0;
+function notifyUndo() { for (const fn of [...undoListeners]) { try { fn(); } catch (e) { console.error(e); } } }
+/** o próximo registro começa um passo novo de desfazer (chamado no início de cada gesto) */
+export function newUndoStep() { openGroup = null; }
+function resetUndo() { undoStack.length = 0; redoStack.length = 0; openGroup = null; notifyUndo(); }
+const recKey = (store, id) => `${store}\u0000${id}`;
+const opId = (op) => (op.type === 'put' ? op.value.id : op.key);
+
+async function captureBefore(ops) {
+  const out = new Map();
+  for (const op of ops) {
+    if (!UNDOABLE.has(op.store) || op.type === 'clear') continue;
+    const id = opId(op);
+    const k = recKey(op.store, id);
+    if (out.has(k)) continue;
+    let before = null;
+    if (op.store === 'photos') {
+      const full = photoCache.has(id) ? photoCache.get(id) : (await db.get('photos', id))?.full;
+      before = full ? { id, full } : null;
+    } else {
+      before = state[op.store].find((x) => x.id === id) || null;
+    }
+    out.set(k, before);
+  }
+  return out;
+}
+
+function recordStep(ops, befores) {
+  const now = Date.now();
+  if (!openGroup || now - openGroup.t > GROUP_MS) {
+    openGroup = { map: new Map(), t: now };
+    undoStack.push(openGroup);
+    if (undoStack.length > MAX_STEPS) undoStack.shift();
+  }
+  openGroup.t = now;
+  redoStack.length = 0;
+  for (const op of ops) {
+    if (!UNDOABLE.has(op.store) || op.type === 'clear') continue;
+    const id = opId(op);
+    const k = recKey(op.store, id);
+    if (!openGroup.map.has(k)) openGroup.map.set(k, { store: op.store, id, before: befores.get(k) ?? null });
+    openGroup.map.get(k).after = op.type === 'put' ? op.value : null;
+  }
+  notifyUndo();
+}
+
+/** nome curto do que um passo mudou (para o aviso "Desfeito: …") */
+function describeStep(g) {
+  const names = [];
+  for (const { store, before, after } of g.map.values()) {
+    const r = after || before;
+    if (!r) continue;
+    let n = null;
+    if (store === 'events' || store === 'commitments' || store === 'places') n = r.name;
+    else if (store === 'items') n = r.title;
+    else if (store === 'visits') n = state.places.find((p) => p.id === r.placeId)?.name || 'Visita';
+    if (n && !names.includes(n)) names.push(n);
+  }
+  if (!names.length) return '';
+  return names.length === 1 ? names[0] : `${names[0]} e mais ${names.length - 1}`;
+}
+
+let undoBusy = false;
+async function replay(from, to, pick) {
+  if (undoBusy || !from.length) return null;
+  undoBusy = true;
+  const g = from.pop();
+  try {
+    openGroup = null;
+    const ops = [...g.map.values()].map((x) => (pick(x) ? put(x.store, pick(x)) : del(x.store, x.id)));
+    await commit(ops, { record: false });
+    to.push(g);
+    return describeStep(g) || 'alteração';
+  } catch (e) {
+    from.push(g);
+    throw e;
+  } finally {
+    undoBusy = false;
+    notifyUndo();
+  }
+}
+/** volta o último passo. Retorna o nome do que mudou (ou null se não havia nada) */
+export const undo = () => replay(undoStack, redoStack, (x) => x.before);
+/** refaz o passo desfeito */
+export const redo = () => replay(redoStack, undoStack, (x) => x.after);
+
+/**
+ * record: true = registra para desfazer; 'attach' = só se juntar a uma ação do usuário recém-feita
+ * (ex.: a conclusão automática disparada por ela); false = não registra.
+ */
+async function commit(ops, { silent = false, record = true } = {}) {
   if (!ops.length) return;
+  if (ops.some((o) => o.type === 'clear')) { resetUndo(); record = false; }
+  const rec = record === true || (record === 'attach' && openGroup && Date.now() - openGroup.t <= GROUP_MS);
+  const undoable = rec && ops.some((o) => UNDOABLE.has(o.store));
+  const befores = undoable ? await captureBefore(ops) : null;
   await db.tx(ops); // lança erro se não gravou -> nada muda na tela
   for (const op of ops) applyOp(op);
+  if (undoable) recordStep(ops, befores);
   writeMirror();
   if (!silent) {
     emit();
@@ -117,19 +225,19 @@ export async function init() {
         for (const c of COLLECTIONS) for (const v of snap[c] || []) ops.push(put(c, v));
         if (snap.settings) ops.push(put('meta', { key: 'settings', value: snap.settings }));
         if (snap.lastSweep) ops.push(put('meta', { key: 'lastSweep', value: snap.lastSweep }));
-        await commit(ops, { silent: true });
+        await commit(ops, { silent: true, record: false });
         state.restoredFromMirror = true;
       }
     } catch (e) { console.warn('mirror', e); }
   }
 
-  // O padrão de conflitos passou a ser "adiar o que vem depois"; aplica uma única vez a quem já usava o app.
+  // Padrão de conflitos: perguntar, mostrando a prévia de cada opção. Aplica uma única vez a quem já usava o app.
   const rawSettings = (data.meta || []).find((m) => m.key === 'settings')?.value;
-  if (!rawSettings || rawSettings.policyRev !== 2) {
-    await commit([put('meta', { key: 'settings', value: { ...state.settings, conflictPolicy: 'cascade', policyRev: 2 } })], { silent: true });
+  if (!rawSettings || (rawSettings.policyRev || 0) < 3) {
+    await commit([put('meta', { key: 'settings', value: { ...state.settings, conflictPolicy: 'ask', policyRev: 3 } })], { silent: true, record: false });
   }
 
-  if (!state.lastSweep) await commit([put('meta', { key: 'lastSweep', value: Date.now() })], { silent: true });
+  if (!state.lastSweep) await commit([put('meta', { key: 'lastSweep', value: Date.now() })], { silent: true, record: false });
   await runSweep();
   db.requestPersist().then((p) => { state.persisted = p; });
 }
@@ -151,7 +259,7 @@ export async function runSweep() {
     ];
     const changed = ops.length > 0;
     ops.push(put('meta', { key: 'lastSweep', value: now }));
-    await commit(ops, { silent: !changed });
+    await commit(ops, { silent: !changed, record: 'attach' });
   } finally {
     sweeping = false;
   }
@@ -335,40 +443,22 @@ export async function deleteCommitment(id) { await commit([del('commitments', id
 
 // ---------- ações sobre ocorrências da agenda ----------
 
-/**
- * moves: [{occ, start, end}] aplicados numa única transação.
- * Retorna um "recibo" para desfazer com undoMoves().
- */
+/** moves: [{occ, start, end}] aplicados numa única transação (um passo de desfazer) */
 export async function applyMoves(moves) {
-  if (!moves.length) return null;
+  if (!moves.length) return false;
   const now = Date.now();
   const working = { ...state, events: [...state.events], visits: [...state.visits], items: [...state.items], commitments: [...state.commitments] };
   const changed = new Map();
   const ops = [];
-  const undo = { records: new Map(), history: new Map() };
   for (const m of moves) {
-    const hid = historyId(m.occ);
-    if (!undo.history.has(hid)) undo.history.set(hid, state.history.find((h) => h.id === hid) || null);
     const { store, value, clearedHistory } = applyMove(working, m.occ, m.start, m.end, now);
-    const k = `${store}:${value.id}`;
-    if (!undo.records.has(k)) undo.records.set(k, { store, value: state[store].find((x) => x.id === value.id) });
     working[store] = working[store].map((x) => (x.id === value.id ? value : x));
-    changed.set(k, put(store, value));
+    changed.set(`${store}:${value.id}`, put(store, value));
     if (clearedHistory) ops.push(del('history', clearedHistory));
   }
   await commit([...changed.values(), ...ops]);
   await runSweep();
-  return undo;
-}
-
-/** desfaz um applyMoves: devolve os registros (e o histórico deles) ao que eram antes */
-export async function undoMoves(undo) {
-  if (!undo) return;
-  const ops = [];
-  for (const { store, value } of undo.records.values()) if (value) ops.push(put(store, value));
-  for (const [hid, h] of undo.history) ops.push(h ? put('history', h) : del('history', hid));
-  await commit(ops);
-  await runSweep();
+  return true;
 }
 
 function markPlaceVisitedOps(placeId, at, via) {
@@ -426,6 +516,106 @@ export async function restoreOccurrence(occ) {
   await runSweep();
 }
 
+// ---------- Plano B (opções para o mesmo horário) ----------
+
+const STORE_BY_KIND = { event: 'events', visit: 'visits', item: 'items' };
+
+/** ops que colocam (g) ou tiram (g = null) uma ocorrência de um grupo de opções */
+function optOps(occ, g, r = 0) {
+  const now = Date.now();
+  const strip = (rec) => { const { optGroup, optRank, ...rest } = rec; return rest; };
+  const store = STORE_BY_KIND[occ.kind];
+  if (store) {
+    const rec = state[store].find((x) => x.id === occ.refId);
+    if (!rec) return [];
+    return [put(store, g ? { ...rec, optGroup: g, optRank: r, updatedAt: now } : { ...strip(rec), updatedAt: now })];
+  }
+  const c = state.commitments.find((x) => x.id === occ.refId);
+  if (!c) return [];
+  if (c.kind === 'once') return [put('commitments', g ? { ...c, optGroup: g, optRank: r, updatedAt: now } : { ...strip(c), updatedAt: now })];
+  const ov = { ...(c.overrides || {}) };
+  const o = strip({ ...(ov[occ.subKey] || {}) });
+  if (g) { o.optGroup = g; o.optRank = r; }
+  if (Object.keys(o).length) ov[occ.subKey] = o; else delete ov[occ.subKey];
+  return [put('commitments', { ...c, overrides: ov, updatedAt: now })];
+}
+
+/** liga um item recém-criado como mais uma opção do horário de `baseOcc` (vira Opção B, C...) */
+export async function linkOption(baseOcc, newKey) {
+  const groups = optGroups(state);
+  const g = baseOcc.opt?.g || `g${uid()}`;
+  const ranks = groups.get(g) || [];
+  const ops = [];
+  if (!baseOcc.opt) ops.push(...optOps(baseOcc, g, 0));
+  const next = occByKey(state, newKey);
+  if (!next) return null;
+  ops.push(...optOps(next, g, (ranks.length ? Math.max(...ranks) : 0) + 1));
+  await commit(ops);
+  return g;
+}
+
+/**
+ * Tira uma ocorrência da agenda (deslizar para a esquerda / "não fiz"):
+ * evento volta para "sem data"; visita, avulso e compromisso único saem; compromisso recorrente
+ * é cancelado só naquela vez. O registro no Histórico some e, se o local só estava "visitado"
+ * por causa deste item, volta a não visitado. Se era uma opção de Plano B e sobrou uma só,
+ * a que sobrou vira um item normal. -> { remaining }
+ */
+export async function removeFromAgenda(occ) {
+  const now = Date.now();
+  const ops = [del('history', historyId(occ))];
+  if (occ.kind === 'event') {
+    const e = state.events.find((x) => x.id === occ.refId);
+    if (e) {
+      const { optGroup, optRank, ...rest } = e;
+      ops.push(put('events', { ...rest, start: null, end: null, status: 'planned', doneAt: null, updatedAt: now }));
+    }
+  } else if (occ.kind === 'visit') {
+    ops.push(del('visits', occ.refId));
+  } else if (occ.kind === 'item') {
+    ops.push(del('items', occ.refId));
+  } else {
+    const c = state.commitments.find((x) => x.id === occ.refId);
+    if (c?.kind === 'once') ops.push(del('commitments', c.id));
+    else if (c) ops.push(put('commitments', { ...c, overrides: { ...(c.overrides || {}), [occ.subKey]: { cancelled: true } }, updatedAt: now }));
+  }
+  if ((occ.kind === 'event' || occ.kind === 'visit') && occ.placeId) {
+    const p = findPlace(occ.placeId);
+    if (p?.visited && (p.visitedVia === 'event' || p.visitedVia === 'visit')) {
+      const otherDone = state.events.some((e) => e.placeId === p.id && !(occ.kind === 'event' && e.id === occ.refId) && e.status === 'done')
+        || state.visits.some((v) => v.placeId === p.id && !(occ.kind === 'visit' && v.id === occ.refId) && v.status === 'done');
+      if (!otherDone) ops.push(put('places', { ...p, visited: false, visitedAt: null, visitedVia: null, updatedAt: now }));
+    }
+  }
+  let remaining = null;
+  if (occ.opt) {
+    const rest = optMembers(state, occ.opt.g, now).filter((o) => o.key !== occ.key);
+    if (rest.length === 1) {
+      remaining = rest[0];
+      ops.push(...optOps(remaining, null));
+    }
+  }
+  await commit(ops);
+  if (remaining && remaining.kind === 'commitment' && remaining.end <= now) {
+    // a varredura não volta no tempo para compromissos: registra a opção que ficou
+    const fresh = occByKey(state, remaining.key, now);
+    if (fresh && fresh.status === 'done') await commit([put('history', historyFor(fresh, 'auto', fresh.end))], { record: 'attach' });
+  }
+  await runSweep();
+  return { remaining: remaining ? occByKey(state, remaining.key, now) : null };
+}
+
+/** "fiz esta opção": tira as outras opções do grupo e deixa só esta */
+export async function keepOnlyOption(occ) {
+  if (!occ.opt) return occ;
+  const others = optMembers(state, occ.opt.g).filter((o) => o.key !== occ.key);
+  for (const o of others) {
+    const fresh = occByKey(state, o.key);
+    if (fresh) await removeFromAgenda(fresh);
+  }
+  return occByKey(state, occ.key);
+}
+
 export async function unscheduleEvent(id) {
   const e = state.events.find((x) => x.id === id);
   if (!e) return;
@@ -481,6 +671,7 @@ export async function importData(data) {
   ops.push(put('meta', { key: 'lastSweep', value: data.lastSweep || Date.now() }));
   await db.tx(ops);
   photoCache.clear();
+  resetUndo();
   const fresh = await db.loadAll();
   for (const c of COLLECTIONS) state[c] = fresh[c] || [];
   for (const m of fresh.meta || []) applyOp(put('meta', m));

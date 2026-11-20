@@ -1,12 +1,12 @@
 // Formulários de cadastro/edição: local, evento, visita a local e compromisso.
 import {
   state, savePlace, saveEvent, saveVisit, saveCommitment, deleteEvent, deleteVisit, deleteCommitment,
-  applyMoves, getPhoto, deletePlace, placeDependents, saveItem, deleteItem,
+  applyMoves, getPhoto, deletePlace, placeDependents, saveItem, deleteItem, linkOption,
 } from './store.js';
 import { openSheet, html, ic, raw, toast, shake, confirmDialog, alertDialog, setHTML } from './ui.js';
 import {
   segHTML, switchCell, textCell, dateTimeCells, durationCell, readStart, placePickerCell,
-  bindFormWidgets, searchBar, placeThumb, remindCells, readRemind,
+  bindFormWidgets, searchBar, placeThumb, remindCells, readRemind, chipBar, catBadge,
 } from './widgets.js';
 import { pushReady } from './push.js';
 import { resolveConflicts, reportResolution, confirmSeries } from './conflicts.js';
@@ -20,6 +20,17 @@ const CAT_OPTIONS = [['', 'Nenhuma'], ['cultura', 'Cultura'], ['aventura', 'Aven
 
 export const defaultStart = () => roundUp(Date.now() + 15 * MIN, 30);
 
+// prefill.optionOf: criando um Plano B para esta ocorrência (mesmo horário, sem checar conflito; liga como opção)
+// prefill.replacing: preenchendo um horário que ficou vazio ("o que você fez?"): sem checar conflito
+const freeSlot = (prefill) => !!(prefill.optionOf || prefill.replacing);
+const durFrom = (prefill, start, fallback) => (prefill.end && prefill.end > start ? Math.round((prefill.end - start) / MIN) : fallback);
+async function afterSave(prefill, key) {
+  if (!prefill.optionOf) return false;
+  const g = await linkOption(prefill.optionOf, key);
+  if (g) toast(`Plano B criado: “${prefill.optionOf.title}” e esta opção ficam lado a lado`, { icon: 'split', ms: 3200 });
+  return !!g;
+}
+
 function remindGroup(value, note = '') {
   return html`<div class="group-label">Notificação</div>
     <div class="form-group">${remindCells(value ?? null, { defaultLead: state.settings.defaultRemind ?? 60, ready: pushReady(), note })}</div>`;
@@ -29,46 +40,131 @@ function deleteButton(label) {
   return html`<div class="form-group"><button type="button" class="cell danger center" data-act="delete">${ic('trash', 'i sm')} ${label}</button></div>`;
 }
 
-// ---------- seletor de local ----------
+// ---------- seletores com busca e filtros (mesma facilidade das abas Locais/Eventos) ----------
 
-export function openPlacePicker(selectedId) {
+/**
+ * Folha de escolha genérica: busca + chips de filtro + lista + ação "criar novo" no topo.
+ * cfg: { title, placeholder, items, filters: [[v, label, pass]], initial, fields(it), sort(a,b), row(it), newLabel, onNew(q) }
+ * -> Promise<id escolhido | undefined>
+ */
+function openFilterPicker(cfg) {
   let q = '';
+  let filter = cfg.initial || 'all';
   const ctl = openSheet({
-    title: 'Escolher local',
+    title: cfg.title,
     className: 'picker-sheet',
-    body: html`<div class="sticky-search">${searchBar('Buscar locais')}</div>
-      <div class="form-group"><button type="button" class="cell" data-act="new-place"><span class="cell-ic accent">${ic('plus', 'i sm')}</span><span class="accent grow">Cadastrar novo local</span></button></div>
+    body: html`<div class="sticky-search">${searchBar(cfg.placeholder)}<div data-ref="chips"></div></div>
+      ${cfg.newLabel ? html`<div class="form-group"><button type="button" class="cell" data-act="new"><span class="cell-ic accent">${ic('plus', 'i sm')}</span><span class="accent grow">${cfg.newLabel}</span></button></div>` : ''}
       <div class="group" data-ref="plist"></div>`,
   });
+  const chipsEl = ctl.body.querySelector('[data-ref="chips"]');
   const listEl = ctl.body.querySelector('[data-ref="plist"]');
-  const render = () => {
-    const items = state.places
-      .map((p) => ({ p, s: matchScore(q, p.name, p.address) }))
-      .filter((x) => x.s > 0)
-      .sort((a, b) => b.s - a.s || byName(a.p, b.p));
-    if (!state.places.length) {
-      setHTML(listEl, html`<div class="note">Nenhum local cadastrado ainda. Cadastre o primeiro acima — ele já fica selecionado.</div>`);
-      return;
-    }
-    setHTML(listEl, items.length
-      ? items.map(({ p }) => html`<button type="button" class="row pick-row" data-pick="${p.id}">${placeThumb(p, 'thumb sm')}<div class="row-main"><div class="row-title">${p.name}</div>${p.address ? html`<div class="row-sub">${p.address}</div>` : ''}</div>${p.id === selectedId ? ic('check', 'i accent') : ''}</button>`)
-      : html`<div class="note">Nenhum local encontrado para “${q}”.</div>`);
+  const passOf = (v) => (cfg.filters.find((f) => f[0] === v) || cfg.filters[0])[2];
+  const renderChips = () => {
+    const sl = chipsEl.querySelector('.chips')?.scrollLeft || 0;
+    setHTML(chipsEl, chipBar(cfg.filters.map(([v, label, pass]) => [v, label, cfg.items.filter(pass).length]), filter));
+    if (sl) chipsEl.querySelector('.chips').scrollLeft = sl;
   };
+  const render = () => {
+    if (!cfg.items.length) { setHTML(listEl, html`<div class="note">${cfg.emptyText || 'Nada cadastrado ainda.'}</div>`); return; }
+    const pass = passOf(filter);
+    const list = cfg.items
+      .filter(pass)
+      .map((it) => ({ it, sc: matchScore(q, ...cfg.fields(it)) }))
+      .filter((x) => x.sc > 0)
+      .sort((a, b) => (q ? b.sc - a.sc : 0) || cfg.sort(a.it, b.it))
+      .map((x) => x.it);
+    setHTML(listEl, list.length ? html`${list.map((it) => cfg.row(it))}` : html`<div class="note">Nada encontrado${q ? html` para “${q}”` : ' com este filtro'}.</div>`);
+  };
+  renderChips();
   render();
   ctl.body.addEventListener('input', (e) => {
     if (e.target.name === 'q') { q = e.target.value; e.target.closest('.search').classList.toggle('has', !!q); render(); }
   });
   ctl.body.addEventListener('click', async (e) => {
+    const chip = e.target.closest('[data-chip]');
+    if (chip) { filter = chip.dataset.chip; renderChips(); render(); return; }
     const pick = e.target.closest('[data-pick]');
     if (pick) { ctl.close(pick.dataset.pick); return; }
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'clear-q') { const i = ctl.body.querySelector('input[name=q]'); i.value = ''; q = ''; i.closest('.search').classList.remove('has'); render(); }
-    if (act === 'new-place') {
-      const saved = await openPlaceForm({ prefill: { name: q } });
-      if (saved?.id) ctl.close(saved.id);
+    if (act === 'new' && cfg.onNew) {
+      const id = await cfg.onNew(q);
+      if (id) ctl.close(id);
     }
   });
   return ctl.result;
+}
+
+const CAT_FILTERS = [
+  ['cultura', 'Cultura', (x) => x.category === 'cultura'],
+  ['aventura', 'Aventura', (x) => x.category === 'aventura'],
+  ['bares', 'Bares e restaurantes', (x) => x.category === 'bares'],
+  ['outros', 'Outros', (x) => x.category === 'outros'],
+];
+
+export function openPlacePicker(selectedId, { title = 'Escolher local' } = {}) {
+  return openFilterPicker({
+    title,
+    placeholder: 'Buscar locais',
+    items: state.places,
+    initial: 'all',
+    filters: [
+      ['all', 'Todos', () => true],
+      ['todo', 'Não visitados', (p) => !p.visited],
+      ['fav', 'Favoritos', (p) => p.favorite],
+      ['date', '♥ Date', (p) => p.isDate],
+      ...CAT_FILTERS,
+      ['visited', 'Visitados', (p) => p.visited],
+    ],
+    fields: (p) => [p.name, p.address],
+    sort: byName,
+    emptyText: 'Nenhum local cadastrado ainda. Cadastre o primeiro acima — ele já fica selecionado.',
+    newLabel: 'Cadastrar novo local',
+    onNew: async (q) => (await openPlaceForm({ prefill: { name: q } }))?.id,
+    row: (p) => html`<button type="button" class="row pick-row" data-pick="${p.id}">${placeThumb(p, 'thumb sm')}
+      <div class="row-main"><div class="row-title">${p.name}</div>
+        <div class="row-meta">${catBadge(p.category)}${p.visited ? html`<span class="badge ok">${ic('check', 'i xs')} Visitado</span>` : ''}${p.favorite ? html`<span class="badge star-b">${ic('star', 'i xs', true)}</span>` : ''}${p.isDate ? html`<span class="badge heart-b">${ic('heart', 'i xs', true)}</span>` : ''}</div>
+      </div>${p.id === selectedId ? ic('check', 'i accent') : ''}</button>`,
+  });
+}
+
+/** escolher um evento já cadastrado (ex.: "Quebra-Nozes", ainda sem data) ou criar um novo */
+export function openEventPicker({ title = 'Escolher evento' } = {}) {
+  const now = Date.now();
+  const done = (e) => e.status === 'done' || e.status === 'missed' || (e.start != null && e.end <= now);
+  const nodate = (e) => e.start == null && !done(e);
+  const placeName = (e) => state.places.find((p) => p.id === e.placeId)?.name || '';
+  return openFilterPicker({
+    title,
+    placeholder: 'Buscar eventos ou locais',
+    items: state.events,
+    initial: state.events.some(nodate) ? 'nodate' : 'all',
+    filters: [
+      ['nodate', 'Sem data', nodate],
+      ['all', 'Todos', () => true],
+      ['upcoming', 'Próximos', (e) => e.start != null && !done(e)],
+      ['fav', 'Favoritos', (e) => e.favorite],
+      ['date', '♥ Date', (e) => e.isDate],
+      ...CAT_FILTERS.map(([v, l]) => [v, l, (e) => (e.category || state.places.find((p) => p.id === e.placeId)?.category) === v]),
+      ['done', 'Já feitos', done],
+    ],
+    fields: (e) => [e.name, placeName(e)],
+    sort: (a, b) => (a.start ?? Infinity) - (b.start ?? Infinity) || byName(a, b),
+    emptyText: 'Nenhum evento cadastrado ainda. Crie o primeiro acima.',
+    newLabel: 'Criar novo evento',
+    onNew: async () => 'new',
+    row: (e) => {
+      const pl = state.places.find((p) => p.id === e.placeId);
+      const cat = e.category || pl?.category;
+      return html`<button type="button" class="row pick-row" data-pick="${e.id}">
+        <span class="pick-dot c-${cat || 'none'}"></span>
+        <div class="row-main"><div class="row-title">${e.name}</div>
+          <div class="row-sub">${ic('pin', 'i xs')} ${pl?.name || 'Local removido'}</div>
+          <div class="row-meta">${catBadge(cat)}${e.start != null ? html`<span class="badge">${fmtDayLong(e.start).split(',')[0]}, ${new Date(e.start).getDate()}/${new Date(e.start).getMonth() + 1} · ${fmtRange(e.start, e.end)}</span>` : html`<span class="badge">sem data</span>`}${done(e) ? html`<span class="badge ok">Feito</span>` : ''}</div>
+        </div></button>`;
+    },
+  });
 }
 
 function bindPlacePicker(root, onPicked) {
@@ -211,15 +307,16 @@ export function openEventForm({ id = null, prefill = {}, requireSchedule = false
   const isDone = prev?.status === 'done';
   const scheduled = prev ? prev.start != null : true;
   // evento já feito e sem data: sugere uma data no passado (para não "desfazer" sem querer)
-  const start = prev?.start ?? prefill.start ?? (isDone ? roundUp(Date.now() - 3 * 60 * MIN, 30) : defaultStart());
-  const dur = prev?.start != null ? Math.round((prev.end - prev.start) / MIN) : 120;
+  // vindo da agenda (horário tocado / Plano B), o horário escolhido vale mesmo para um evento que já tinha data
+  const start = (requireSchedule && prefill.start) || (prev?.start ?? prefill.start ?? (isDone ? roundUp(Date.now() - 3 * 60 * MIN, 30) : defaultStart()));
+  const dur = durFrom(prefill, start, prev?.start != null ? Math.round((prev.end - prev.start) / MIN) : 120);
 
   const statusLine = isDone
     ? 'Concluído — está no Histórico. Você pode mudar a data em que foi; ele continua como feito.'
     : prev?.status === 'missed' ? 'Marcado como “não aconteceu”.' : '';
 
   const ctl = openSheet({
-    title: prev ? 'Editar evento' : 'Novo evento',
+    title: prev ? (requireSchedule && prefill.start && prev.start !== prefill.start ? 'Agendar evento' : 'Editar evento') : prefill.optionOf ? 'Plano B: evento' : 'Novo evento',
     right: 'Salvar',
     body: html`<form class="form" novalidate autocomplete="off">
       <div class="group-label">Local do evento <span class="req">obrigatório</span></div>
@@ -253,7 +350,7 @@ export function openEventForm({ id = null, prefill = {}, requireSchedule = false
         const end = reqStart + Number(f.elements.duration.value) * MIN;
         const sameTime = prev && prev.start === reqStart && prev.end === end;
         const pastDone = isDone && end <= Date.now(); // só corrigindo a data de algo já feito: sem checar conflito
-        if (!sameTime && pastDone) { data.start = reqStart; data.end = end; } else if (!sameTime) {
+        if (!sameTime && (pastDone || freeSlot(prefill))) { data.start = reqStart; data.end = end; } else if (!sameTime) {
           res = await resolveConflicts({ key: prev ? `event:${prev.id}` : 'new', start: reqStart, end, title: name });
           if (!res) return false;
           data.start = res.start; data.end = res.end;
@@ -261,6 +358,7 @@ export function openEventForm({ id = null, prefill = {}, requireSchedule = false
       }
       const saved = await saveEvent(data);
       if (res) { await applyMoves(res.moves); reportResolution(res, reqStart); }
+      if (await afterSave(prefill, `event:${saved.id}`)) return saved;
       if (!res?.policy) toast(prev ? 'Evento atualizado' : 'Evento salvo', { icon: 'check' });
       return saved;
     },
@@ -286,10 +384,10 @@ export function openVisitForm({ id = null, prefill = {} } = {}) {
   const placeId = prev?.placeId || prefill.placeId || null;
   const place = state.places.find((p) => p.id === placeId);
   const start = prev?.start ?? prefill.start ?? defaultStart();
-  const dur = prev ? Math.round((prev.end - prev.start) / MIN) : 120;
+  const dur = prev ? Math.round((prev.end - prev.start) / MIN) : durFrom(prefill, start, 120);
 
   const ctl = openSheet({
-    title: prev ? 'Editar visita' : 'Agendar visita',
+    title: prev ? 'Editar visita' : prefill.optionOf ? 'Plano B: local' : 'Agendar visita',
     right: 'Salvar',
     body: html`<form class="form" novalidate autocomplete="off">
       <div class="group-label">Local <span class="req">obrigatório</span></div>
@@ -309,13 +407,14 @@ export function openVisitForm({ id = null, prefill = {} } = {}) {
       const end = s + Number(f.elements.duration.value) * MIN;
       const pl = state.places.find((p) => p.id === pid);
       let res = { start: s, end, moves: [], policy: null };
-      if (!(prev && prev.start === s && prev.end === end) && !(prev?.status === 'done' && end <= Date.now())) {
+      if (!(prev && prev.start === s && prev.end === end) && !(prev?.status === 'done' && end <= Date.now()) && !freeSlot(prefill)) {
         res = await resolveConflicts({ key: prev ? `visit:${prev.id}` : 'new', start: s, end, title: pl?.name || 'Visita' });
         if (!res) return false;
       }
       const saved = await saveVisit({ id: prev?.id, placeId: pid, start: res.start, end: res.end, remind: readRemind(f) });
       await applyMoves(res.moves);
       reportResolution(res, s);
+      if (await afterSave(prefill, `visit:${saved.id}`)) return saved;
       if (!res.policy) toast(prev ? 'Visita atualizada' : 'Visita agendada', { icon: 'check' });
       return saved;
     },
@@ -363,13 +462,13 @@ export function openCommitmentForm({ id = null, prefill = {} } = {}) {
     ? prev.slots
     : [{ id: uid(), days: [new Date(pStart).getDay()], monthDays: [new Date(pStart).getDate()], startMin, endMin: (startMin + 60) % 1440 }];
   const onceStart = prev?.kind === 'once' && prev.start ? prev.start : pStart;
-  const onceEnd = prev?.kind === 'once' && prev.end ? prev.end : pStart + 60 * MIN;
+  const onceEnd = prev?.kind === 'once' && prev.end ? prev.end : (prefill.end && prefill.end > pStart ? prefill.end : pStart + 60 * MIN);
   const startDate = prev?.startDate || dateKey(Date.now());
   const untilDate = prev?.untilDate || '';
   const REC = 'kind=daily|weekly|monthly';
 
   const ctl = openSheet({
-    title: prev ? 'Editar compromisso' : 'Novo compromisso',
+    title: prev ? 'Editar compromisso' : prefill.optionOf ? 'Plano B: compromisso' : 'Novo compromisso',
     right: 'Salvar',
     body: html`<form class="form" novalidate autocomplete="off">
       <div class="form-group">${textCell('name', 'Nome', prev?.name || '', { placeholder: 'Ex.: Terapia, Trabalho, Academia', required: true })}</div>
@@ -439,13 +538,14 @@ export function openCommitmentForm({ id = null, prefill = {} } = {}) {
       let end = atMinutes(dateKey(s), endMin);
       if (end <= s) end += DAY;
       let res = { start: s, end, moves: [], policy: null };
-      if (!(prev && prev.kind === 'once' && prev.start === s && prev.end === end)) {
+      if (!(prev && prev.kind === 'once' && prev.start === s && prev.end === end) && !freeSlot(prefill)) {
         res = await resolveConflicts({ key: prev ? `commitment:${prev.id}:once` : 'new', start: s, end, title: name });
         if (!res) return false;
       }
       const saved = await saveCommitment({ ...data, start: res.start, end: res.end, status: null });
       await applyMoves(res.moves);
       reportResolution(res, s);
+      if (await afterSave(prefill, `commitment:${saved.id}:once`)) return saved;
       if (!res.policy) toast(prev ? 'Compromisso atualizado' : 'Compromisso salvo', { icon: 'check' });
       return saved;
     },
@@ -487,9 +587,9 @@ export function openCommitmentForm({ id = null, prefill = {} } = {}) {
 export function openItemForm({ id = null, prefill = {} } = {}) {
   const prev = id ? state.items.find((i) => i.id === id) : null;
   const start = prev?.start ?? prefill.start ?? defaultStart();
-  const dur = prev ? Math.round((prev.end - prev.start) / MIN) : 60;
+  const dur = prev ? Math.round((prev.end - prev.start) / MIN) : durFrom(prefill, start, 60);
   const ctl = openSheet({
-    title: prev ? 'Editar horário' : 'Horário avulso',
+    title: prev ? 'Editar horário' : prefill.optionOf ? 'Plano B: horário avulso' : 'Horário avulso',
     right: 'Salvar',
     body: html`<form class="form" novalidate autocomplete="off">
       <div class="form-group">
@@ -510,13 +610,14 @@ export function openItemForm({ id = null, prefill = {} } = {}) {
       if (s == null) { toast('Informe data e horário', { icon: 'alert' }); return false; }
       const end = s + Number(f.elements.duration.value) * MIN;
       let res = { start: s, end, moves: [], policy: null };
-      if (!(prev && prev.start === s && prev.end === end) && !(prev?.status === 'done' && end <= Date.now())) {
+      if (!(prev && prev.start === s && prev.end === end) && !(prev?.status === 'done' && end <= Date.now()) && !freeSlot(prefill)) {
         res = await resolveConflicts({ key: prev ? `item:${prev.id}` : 'new', start: s, end, title });
         if (!res) return false;
       }
       const saved = await saveItem({ id: prev?.id, title, note: f.elements.note.value.trim(), start: res.start, end: res.end, remind: readRemind(f) });
       await applyMoves(res.moves);
       reportResolution(res, s);
+      if (await afterSave(prefill, `item:${saved.id}`)) return saved;
       if (!res.policy) toast(prev ? 'Horário atualizado' : 'Adicionado à agenda', { icon: 'check' });
       return saved;
     },

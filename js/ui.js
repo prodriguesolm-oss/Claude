@@ -17,7 +17,7 @@ export function html(strings, ...vals) {
 
 export const ic = (name, cls, filled) => raw(icon(name, cls, filled));
 export const $ = (root, ref) => root.querySelector(`[data-ref="${ref}"]`);
-export function setHTML(el, h) { el.innerHTML = String(h); }
+export function setHTML(el, h) { el.innerHTML = Array.isArray(h) ? h.join("") : String(h); }
 
 const layer = () => document.getElementById('overlays');
 const stack = [];
@@ -63,6 +63,7 @@ function attachSwipeDismiss(handleEls, sheet, close) {
  * onRight(ctl): retorne false para manter aberta; qualquer outro valor fecha.
  */
 export function openSheet({ title = '', body = '', left = 'Cancelar', right = null, onRight, onClose, className = '', backdropClose = true } = {}) {
+  hideToast();
   const wrap = document.createElement('div');
   wrap.className = 'sheet-wrap';
   setHTML(wrap, html`<div class="sheet-backdrop"></div>
@@ -122,6 +123,7 @@ export function openSheet({ title = '', body = '', left = 'Cancelar', right = nu
 
 /** Menu de ações (action sheet). Resolve com o `value` escolhido ou null. */
 export function actionSheet({ title, message, messageHtml, actions, cancel = 'Cancelar' }) {
+  hideToast();
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
     wrap.className = 'as-wrap';
@@ -130,7 +132,7 @@ export function actionSheet({ title, message, messageHtml, actions, cancel = 'Ca
       <div class="as" role="dialog" aria-modal="true">
         <div class="as-group">
           ${head ? html`<div class="as-head">${title ? html`<div class="as-title">${title}</div>` : ''}${message ? html`<div class="as-msg">${message}</div>` : ''}${messageHtml ? html`<div class="as-msg">${raw(messageHtml)}</div>` : ''}</div>` : ''}
-          ${actions.map((a, i) => html`<button type="button" class="as-btn ${a.style || ''}" data-i="${i}">${a.icon ? ic(a.icon) : ''}<span>${a.label}</span></button>`)}
+          ${actions.map((a, i) => html`<button type="button" class="as-btn ${a.style || ''} ${a.hint ? 'has-hint' : ''}" data-i="${i}">${a.icon ? ic(a.icon) : ''}<span class="as-lbl">${a.label}${a.hint ? html`<small>${a.hint}</small>` : ''}</span></button>`)}
         </div>
         <button type="button" class="as-btn as-cancel" data-i="-1">${cancel}</button>
       </div>`);
@@ -197,6 +199,14 @@ export function confirmDialog({ title, message, ok = 'Confirmar', cancel = 'Canc
 }
 
 let toastTimer = null;
+/** um aviso antigo não fica por cima de uma folha/menu que acabou de abrir */
+export function hideToast() {
+  const el = document.getElementById('toast');
+  if (!el || !el.classList.contains('show')) return;
+  clearTimeout(toastTimer);
+  el.classList.remove('show');
+  el.onclick = null;
+}
 /** aviso rápido; `action: { label, onClick }` acrescenta um botão (ex.: Desfazer) e deixa o aviso mais tempo na tela */
 export function toast(message, { icon: iconName = null, ms = 2200, action = null } = {}) {
   let el = document.getElementById('toast');

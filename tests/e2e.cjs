@@ -206,6 +206,8 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   // conflito: novo evento na quarta 10:30 bate com a terapia (10:00-11:00)
   await view('agenda').locator('.fab').click(); await page.waitForTimeout(400);
   await page.locator('.as-btn:has-text("Evento")').click(); await page.waitForTimeout(400);
+  assert(await sheet().locator('.sheet-title').innerText() === 'Escolher evento', 'pela agenda, "Evento" abre a escolha com busca e filtros');
+  await sheet().locator('[data-act=new]').click(); await page.waitForTimeout(500); // "Criar novo evento"
   await sheet().locator('[data-act=pick-place]').click(); await page.waitForTimeout(400);
   await sheet().locator('[data-pick]').first().click(); await page.waitForTimeout(300);
   await sheet().locator('input[name=name]').fill('Visita guiada');
@@ -215,10 +217,17 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   await sheet().locator('[data-sheet=right]').click(); await page.waitForTimeout(500);
   assert(await page.locator('.as-wrap').count() === 1, 'aviso de conflito apareceu');
   await shot('12-conflict');
-  await page.locator('.as-btn:has-text("Adiar o que já estava")').click(); await page.waitForTimeout(700);
+  const conflictOpts = await page.locator('.as-wrap.open .as-btn').allInnerTexts();
+  assert(conflictOpts.some(t => t.includes('Colocar “Visita guiada” depois')) && conflictOpts.some(t => t.includes('Manter sobreposto')), 'aviso oferece colocar o novo depois ou manter sobreposto');
+  await page.locator('.as-btn:has-text("Só adiantar o fim de “Terapia”")').click(); await page.waitForTimeout(700);
   const wedAfter = await view('agenda').locator('.tl-b').allInnerTexts();
   console.log('   quarta após conflito:', wedAfter.map(t => t.replace(/\n/g,' | ')));
-  assert(wedAfter.some(t => t.includes('Terapia') && t.includes('11:30')), 'terapia foi empurrada para 11:30');
+  const terapiaRange = await page.evaluate(async (k) => {
+    const { state } = await import('./js/store.js'); const sch = await import('./js/schedule.js'); const t = await import('./js/time.js');
+    const ds = t.parseDateKey(k).getTime(); const o = sch.expand(state, ds, t.addDays(ds, 1)).find((x) => x.title === 'Terapia');
+    return o && t.fmtRange(o.start, o.end);
+  }, dk(wed));
+  assert(terapiaRange === '10:00–10:30', `terapia terminou mais cedo (${terapiaRange}) para caber a visita`);
 
   // arrastar (toque longo) a "Visita guiada" 1h para baixo
   const cdp = await ctx.newCDPSession(page);

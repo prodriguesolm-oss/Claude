@@ -1,13 +1,17 @@
 // Aba Agenda: junta eventos, visitas a locais e compromissos numa linha do tempo do dia
-// (ou lista das próximas semanas). Toque para abrir; segure e arraste para mover;
-// puxe a borda de baixo (ou as bolinhas do bloco selecionado) para mudar início, fim e duração.
-import { state, updateSettings, undoMoves } from '../store.js';
+// (ou lista das próximas semanas). Gestos nos blocos:
+//  - toque: abre a ficha · toque triplo: cria um Plano B (outra opção para o mesmo horário)
+//  - segurar e arrastar: move · borda de baixo (ou bolinhas do bloco selecionado): muda início/fim
+//  - deslizar para a esquerda: tira da agenda (e, se já tinha acontecido, pergunta o que você fez)
+// Cores pela classificação (aventura, cultura, bares...); botões ↶ ↷ desfazem/refazem.
+import { state, updateSettings, undo, redo, canUndo, canRedo, onUndoChange, newUndoStep } from '../store.js';
 import { html, ic, setHTML, $, toast } from '../ui.js';
 import { fab } from '../widgets.js';
 import { occRow } from '../rows.js';
 import { openOccurrenceSheet, openAddChooser, openSettings, doExport } from '../sheets.js';
 import { moveWithConflicts, resolutionNotes } from '../conflicts.js';
-import { expand, occByKey, layoutColumns, FREQ_LABEL, SCOPE_LABEL } from '../schedule.js';
+import { expand, occByKey, layoutColumns, colorOf, FREQ_LABEL, SCOPE_LABEL } from '../schedule.js';
+import { offerPlanB, swipeRemove, findGap, openGapSheet, undoAction } from '../reorg.js';
 import { haptic, isIOS, isStandalone } from '../util.js';
 import {
   MIN, startOfDay, addDays, startOfWeek, dateKey, parseDateKey, atMinutes, fmtDayLong, fmtRange, fmtHM,
@@ -16,6 +20,7 @@ import {
 
 const PX = 1; // pixels por minuto (60px por hora)
 const SNAP = 15; // minutos
+const TAP_WAIT = 300; // ms para distinguir toque simples de toque triplo
 
 export function createAgendaView() {
   let root;
@@ -26,6 +31,7 @@ export function createAgendaView() {
   let press = null;
   let renderDeferred = false;
   let selKey = null; // bloco selecionado (com as bolinhas de início/fim)
+  let tap = null; // contagem de toques no mesmo bloco (toque triplo = Plano B)
 
   const els = {};
 
@@ -53,14 +59,27 @@ export function createAgendaView() {
       </header>
       <div class="ag-hint" data-ref="hint"></div>
       <div class="ag-body" data-ref="body"></div>
+      <div class="ag-undo" data-ref="undo">
+        <button type="button" data-act="undo" aria-label="Desfazer">${ic('undo', 'i')}</button>
+        <button type="button" data-act="redo" aria-label="Refazer">${ic('redo', 'i')}</button>
+      </div>
       ${fab('Adicionar à agenda')}`);
-    for (const k of ['head', 'month', 'jump', 'week', 'daytitle', 'mode', 'hint', 'body']) els[k] = $(root, k);
+    for (const k of ['head', 'month', 'jump', 'week', 'daytitle', 'mode', 'hint', 'body', 'undo']) els[k] = $(root, k);
 
     root.addEventListener('click', onClick);
     els.jump.addEventListener('change', () => { if (els.jump.value) select(startOfDay(parseDateKey(els.jump.value))); });
     bindSwipe(els.week, (dir) => select(addDays(selected, 7 * dir)));
-    bindSwipe(els.body, (dir) => { if (mode === 'day') select(addDays(selected, dir)); });
+    // trocar de dia deslizando só fora dos blocos (deslizar um bloco para a esquerda tira ele da agenda)
+    bindSwipe(els.body, (dir) => { if (mode === 'day') select(addDays(selected, dir)); }, (t) => !t.closest('.tl-b'));
     bindDrag(els.body);
+    onUndoChange(syncUndo);
+    syncUndo();
+  }
+
+  function syncUndo() {
+    const [u, r] = els.undo.querySelectorAll('button');
+    u.disabled = !canUndo();
+    r.disabled = !canRedo();
   }
 
   function select(day) {
@@ -81,12 +100,21 @@ export function createAgendaView() {
     const block = t.closest('[data-key]');
     if (block) {
       if (suppressClick || t.closest('[data-handle]')) return;
-      deselect();
-      openOccurrenceSheet(block.dataset.key);
+      onBlockTap(block.dataset.key);
       return;
     }
     const act = t.closest('[data-act]')?.dataset.act;
     switch (act) {
+      case 'undo': {
+        const what = await undo();
+        toast(what ? `Desfeito: ${what}` : 'Nada para desfazer', { icon: 'undo' });
+        return;
+      }
+      case 'redo': {
+        const what = await redo();
+        toast(what ? `Refeito: ${what}` : 'Nada para refazer', { icon: 'redo' });
+        return;
+      }
       case 'today': select(Date.now()); return;
       case 'prev-week': select(addDays(selected, -7)); return;
       case 'next-week': select(addDays(selected, 7)); return;
@@ -106,8 +134,56 @@ export function createAgendaView() {
       const min = Math.floor((e.clientY - r.top) / PX / SNAP) * SNAP;
       if (min < 0 || min >= 1440) return;
       showGhost(tl, min);
-      openAddChooser(atMinutes(dateKey(selected), min));
+      const at = atMinutes(dateKey(selected), min);
+      openAddChooser(at, { gap: gapAt(at) });
     }
+  }
+
+  /** toque simples abre a ficha; toque triplo (no mesmo bloco) oferece um Plano B */
+  function onBlockTap(key) {
+    const now = Date.now();
+    if (tap && tap.key === key && now - tap.t < TAP_WAIT + 150) {
+      tap.n++;
+      tap.t = now;
+      clearTimeout(tap.timer);
+    } else {
+      if (tap) clearTimeout(tap.timer);
+      tap = { key, n: 1, t: now };
+    }
+    if (tap.n >= 3) {
+      tap = null;
+      deselect();
+      haptic();
+      const occ = occByKey(state, key);
+      if (occ) offerPlanB(occ);
+      return;
+    }
+    tap.timer = setTimeout(() => {
+      const k = tap?.key;
+      tap = null;
+      if (!k) return;
+      deselect();
+      openOccurrenceSheet(k);
+    }, TAP_WAIT);
+  }
+
+  /**
+   * Horário vazio tocado: se houver um item mais tarde no mesmo dia, devolve o espaço livre
+   * (do fim do item anterior — ou de agora — até ele) para oferecer "adiantar".
+   */
+  function gapAt(t) {
+    const de = addDays(selected, 1);
+    const occs = expand(state, selected, de);
+    const live = occs.filter((o) => o.status !== 'done' && o.status !== 'missed' && o.status !== 'choose');
+    if (live.some((o) => o.start <= t && o.end > t)) return null;
+    const next = live.filter((o) => o.start >= t && o.start < de).sort((a, b) => a.start - b.start)[0];
+    if (!next) return null;
+    const ends = occs.filter((o) => o.end <= t && o.status !== 'missed').map((o) => o.end);
+    let from = ends.length ? Math.max(...ends) : t;
+    from = Math.max(from, roundUp(Date.now(), 5));
+    const gap = next.start - from;
+    if (gap < 5 * MIN || gap > 4 * 60 * MIN) return null;
+    return { next, from, gap, occs };
   }
 
   function defaultStartFor(day) {
@@ -153,7 +229,7 @@ export function createAgendaView() {
       days.push(html`<button type="button" class="wd ${ds === selected ? 'sel' : ''} ${ds === today ? 'today' : ''}" data-day="${ds}" aria-label="${fmtDayLong(ds)}">
         <span class="wd-l">${WD_LETTER[new Date(ds).getDay()]}</span>
         <span class="wd-n">${new Date(ds).getDate()}</span>
-        <span class="wd-dots">${dots.map((o) => html`<i class="k-${o.kind}"></i>`)}</span>
+        <span class="wd-dots">${dots.map((o) => html`<i class="c-${colorOf(o)}"></i>`)}</span>
       </button>`);
     }
     setHTML(els.week, html`${days}`);
@@ -196,11 +272,12 @@ export function createAgendaView() {
     const items = layoutColumns(occs.map((o) => ({ o, s: Math.max(o.start, ds), e: Math.min(o.end, de) })));
     const conflicts = items.filter((i) => i.conflict).length;
     const active = occs.filter((o) => o.status !== 'missed').length;
+    const toChoose = new Set(occs.filter((o) => o.status === 'choose').map((o) => o.opt?.g)).size;
     const dd = new Date(ds);
     const shortDay = `${cap(WD_LONG[dd.getDay()].split('-')[0])}, ${dd.getDate()} ${MONTHS_SHORT[dd.getMonth()]}`;
     const rel = dayLabel(ds, now);
     const title = rel === 'Hoje' || rel === 'Amanhã' || rel === 'Ontem' ? `${rel}, ${dd.getDate()} ${MONTHS_SHORT[dd.getMonth()]}` : shortDay;
-    setHTML(els.daytitle, html`${title}${active ? html` <span class="muted">· ${active} ${active === 1 ? 'item' : 'itens'}</span>` : ''}${conflicts ? html` <span class="warn-text">· ${ic('alert', 'i xxs')} ${conflicts}</span>` : ''}`);
+    setHTML(els.daytitle, html`${title}${active && !toChoose ? html` <span class="muted">· ${active} ${active === 1 ? 'item' : 'itens'}</span>` : ''}${conflicts ? html` <span class="warn-text">· ${ic('alert', 'i xxs')} ${conflicts}</span>` : ''}${toChoose ? html` <span class="choose-text">· escolha ${toChoose === 1 ? 'a opção' : `${toChoose} opções`}</span>` : ''}`);
 
     const y = (t) => ((t - ds) / MIN) * PX;
     const total = ((de - ds) / MIN) * PX;
@@ -214,9 +291,11 @@ export function createAgendaView() {
       const compact = h < 44;
       const left = `calc(var(--tl-l) + (100% - var(--tl-l) - 8px) * ${it.col / it.cols})`;
       const width = `calc((100% - var(--tl-l) - 8px) / ${it.cols} - 3px)`;
-      const sub = o.kind === 'event' ? o.subtitle : o.kind === 'visit' ? 'Visita' : o.kind === 'item' ? o.subtitle : o.recurring ? (FREQ_LABEL[o.freq] || '') : '';
-      return html`<div class="tl-b k-${o.kind} st-${o.status} ${it.conflict ? 'conflict' : ''} ${compact ? 'compact' : ''}" data-key="${o.key}" data-start="${o.start}" data-end="${o.end}" data-cs="${o.start < ds ? 1 : 0}" data-ce="${o.end > de ? 1 : 0}" style="top:${top}px;height:${h}px;left:${left};width:${width}">
-        <div class="tl-b-t">${it.conflict ? ic('alert', 'i xxs warn-ic') : ''}${o.status === 'done' ? ic('check', 'i xxs') : ''}${o.remind != null && (o.status === 'planned' || o.status === 'ongoing') ? ic('bell', 'i xxs bell-ic') : ''}${o.title}${compact ? html`<span class="tl-b-inline"> · ${fmtHM(o.start)}</span>` : ''}</div>
+      const sub = o.status === 'choose' ? 'Qual você fez? Deslize ← a que não fez'
+        : o.kind === 'event' ? o.subtitle : o.kind === 'visit' ? 'Visita' : o.kind === 'item' ? o.subtitle : o.recurring ? (FREQ_LABEL[o.freq] || '') : '';
+      const isOpt = o.opt && o.opt.of > 1;
+      return html`<div class="tl-b c-${colorOf(o)} k-${o.kind} st-${o.status} ${it.conflict ? 'conflict' : ''} ${compact ? 'compact' : ''} ${isOpt ? 'is-opt' : ''}" data-key="${o.key}" data-start="${o.start}" data-end="${o.end}" data-cs="${o.start < ds ? 1 : 0}" data-ce="${o.end > de ? 1 : 0}" style="top:${top}px;height:${h}px;left:${left};width:${width}">
+        <div class="tl-b-t">${isOpt ? html`<span class="opt-tag">${o.opt.letter}</span>` : ''}${it.conflict ? ic('alert', 'i xxs warn-ic') : ''}${o.status === 'done' ? ic('check', 'i xxs') : ''}${o.remind != null && (o.status === 'planned' || o.status === 'ongoing') ? ic('bell', 'i xxs bell-ic') : ''}${o.title}${compact ? html`<span class="tl-b-inline"> · ${fmtHM(o.start)}</span>` : ''}</div>
         ${compact ? '' : html`<div class="tl-b-s">${fmtRange(o.start, o.end)}${sub ? ` · ${sub}` : ''}</div>`}
         ${o.recurring ? html`<span class="tl-b-rep">${ic('repeat', 'i xxs')}</span>` : ''}
         ${compact || o.end > de ? '' : html`<span class="tl-grip"></span>`}
@@ -270,10 +349,10 @@ export function createAgendaView() {
 
   // ---------- gestos ----------
 
-  function bindSwipe(el, onSwipe) {
+  function bindSwipe(el, onSwipe, allow = () => true) {
     let sw = null;
     el.addEventListener('touchstart', (e) => {
-      if (e.touches.length !== 1) { sw = null; return; }
+      if (e.touches.length !== 1 || !allow(e.target)) { sw = null; return; }
       sw = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
     }, { passive: true });
     el.addEventListener('touchend', (e) => {
@@ -290,7 +369,8 @@ export function createAgendaView() {
   //  - segurar o meio do bloco  -> seleciona e move (início e fim juntos)
   //  - segurar a borda de baixo -> muda só o fim (a duração)
   //  - bloco selecionado        -> bolinhas de início/fim e o corpo respondem na hora, sem segurar
-  // Tudo de 15 em 15 min; ao soltar, os conflitos seguem a política dos Ajustes (padrão: adiar o que vem depois).
+  //  - deslizar para a esquerda   -> tira da agenda (passando do ponto, solta; antes disso, volta)
+  // Tudo de 15 em 15 min; ao soltar, se bater com outro horário, o app pergunta o que fazer (padrão).
   function bindDrag(container) {
     const LONG = 350;
     const EDGE = 16; // px da borda de baixo que redimensiona direto
@@ -298,9 +378,34 @@ export function createAgendaView() {
     const snapAbs = (t) => selected + Math.round((t - selected) / MIN / SNAP) * SNAP * MIN;
     let raf = 0;
 
+    // ----- deslizar para a esquerda (tirar da agenda) -----
+    const startSwipe = () => {
+      const p = press;
+      clearTimeout(p.timer);
+      p.kind = 'swipe';
+      p.active = true;
+      const bg = document.createElement('div');
+      bg.className = 'tl-swipe-bg';
+      bg.style.cssText = `top:${p.el.style.top};height:${p.el.style.height};left:${p.el.style.left};width:${p.el.style.width}`;
+      bg.innerHTML = String(html`<span>${ic('trash', 'i sm')} ${p.el.classList.contains('is-opt') ? 'Tirar esta opção' : p.el.classList.contains('st-done') ? 'Não fiz' : 'Tirar da agenda'}</span>`);
+      p.el.parentNode.insertBefore(bg, p.el);
+      p.bg = bg;
+      p.el.classList.add('swiping');
+      container.classList.add('drag-mode');
+    };
+    const paintSwipe = () => {
+      const p = press;
+      const w = p.el.getBoundingClientRect().width;
+      const dx = Math.min(0, p.lastX - p.x0);
+      p.armed = -dx > Math.max(80, w * 0.38);
+      p.el.style.transform = `translateX(${dx}px)`;
+      if (p.armed !== p.wasArmed) { p.bg.classList.toggle('armed', p.armed); if (p.armed) haptic(); p.wasArmed = p.armed; }
+    };
+
     const paint = () => {
       const p = press;
       if (!p) return;
+      if (p.kind === 'swipe') { paintSwipe(); return; }
       const raw = (p.lastY - tlTop() - p.yTl0) / PX; // minutos desde o início do gesto (acompanha a rolagem)
       const ds = selected;
       const de = addDays(selected, 1);
@@ -370,15 +475,16 @@ export function createAgendaView() {
     };
 
     const begin = (el, x, y, target) => {
+      newUndoStep(); // cada gesto vira um passo próprio no ↶
       const handle = target.closest?.('[data-handle]');
       const isSel = el.classList.contains('sel');
       const r = el.getBoundingClientRect();
       let kind = 'move';
       if (handle) kind = handle.dataset.handle;
-      else if (r.height >= 44 && y > r.bottom - EDGE && el.dataset.ce !== '1') kind = 'end'; // borda de baixo: duração
-      else if (isSel && r.height >= 44 && y < r.top + 10 && el.dataset.cs !== '1') kind = 'start'; // selecionado: borda de cima
+      else if (r.height >= 40 && y > r.bottom - EDGE && el.dataset.ce !== '1') kind = 'end'; // borda de baixo: duração
+      else if (isSel && r.height >= 40 && y < r.top + 10 && el.dataset.cs !== '1') kind = 'start'; // selecionado: borda de cima
       press = {
-        el, key: el.dataset.key, kind, x0: x, y0: y, lastY: y, yTl0: y - tlTop(),
+        el, key: el.dataset.key, kind, x0: x, y0: y, lastX: x, lastY: y, yTl0: y - tlTop(),
         s0: Number(el.dataset.start), e0: Number(el.dataset.end),
         top0: el.style.top, h0: el.style.height,
         active: false, immediate: isSel,
@@ -390,13 +496,18 @@ export function createAgendaView() {
 
     const move = (x, y, e) => {
       if (!press) return;
+      press.lastX = x;
       press.lastY = y;
       if (!press.active) {
         const dx = Math.abs(x - press.x0);
         const dy = Math.abs(y - press.y0);
+        const leftSwipe = x - press.x0 < -10 && dx > dy * 1.4 && !e.target?.closest?.('[data-handle]');
         if (press.immediate) {
           if (e.cancelable) e.preventDefault();
-          if (dx > 4 || dy > 4) activate(); else return;
+          if (leftSwipe) startSwipe();
+          else if (dx > 4 || dy > 4) activate(); else return;
+        } else if (leftSwipe) {
+          startSwipe();
         } else {
           if (dx > 8 || dy > 8) { clearTimeout(press.timer); press = null; } // era rolagem
           return;
@@ -407,6 +518,7 @@ export function createAgendaView() {
     };
 
     const restore = (p) => {
+      if (p.bg) { p.bg.remove(); p.el.classList.remove('swiping'); }
       p.el.classList.remove('dragging', 'drag-move', 'drag-end', 'drag-start', 'tiny');
       p.el.style.transform = '';
       p.el.style.top = p.top0;
@@ -427,6 +539,18 @@ export function createAgendaView() {
       if (e?.cancelable) e.preventDefault();
       suppressClick = true;
       setTimeout(() => { suppressClick = false; }, 450);
+      if (p.kind === 'swipe') {
+        if (!p.armed) { p.el.style.transition = 'transform .2s'; restore(p); setTimeout(() => { p.el.style.transition = ''; }, 220); return; }
+        p.el.style.transition = 'transform .18s ease-in, opacity .18s';
+        p.el.style.transform = 'translateX(-115%)';
+        p.el.style.opacity = '0';
+        container.classList.remove('drag-mode');
+        const occ = occByKey(state, p.key);
+        setTimeout(async () => {
+          try { if (occ) await swipeRemove(occ); } finally { renderDeferred = false; update(); }
+        }, 170);
+        return;
+      }
       if (p.ns === p.s0 && p.ne === p.e0) { restore(p); coach(); return; }
       container.classList.remove('drag-mode');
       const occ = occByKey(state, p.key);
@@ -475,19 +599,22 @@ export function createAgendaView() {
     });
   }
 
-  /** aviso depois de arrastar, com "Desfazer" */
+  /** aviso depois de arrastar: "Desfazer", ou "Adiantar" quando a mudança abriu um espaço antes do próximo item */
   function announce(occ, res, kind) {
     const what = kind === 'end' ? `${occ.title} até ${fmtHM(res.end)}`
       : kind === 'start' ? `${occ.title} a partir das ${fmtHM(res.start)}`
         : `${occ.title}: ${fmtRange(res.start, res.end)}`;
     const scope = occ.recurring ? ` · só ${SCOPE_LABEL[occ.freq] || 'desta vez'}` : '';
     const notes = resolutionNotes(res).map((n) => ` · ${n}`).join('');
-    toast(`${what}${scope}${notes}`, {
+    let gap = null;
+    if (res.end < occ.end && res.start === occ.start && !res.leftover?.length) { // terminou antes do previsto (não quando só mudou de lugar)
+      const g = findGap(res.end, { excludeKey: occ.key });
+      const before = g && g.next.start - occ.end;
+      if (g && g.from === res.end && g.gap > Math.max(0, before) + 4 * MIN) gap = g;
+    }
+    toast(`${what}${scope}${notes}${gap ? ` · ${Math.round(gap.gap / MIN)} min livres` : ''}`, {
       icon: res.leftover?.length ? 'alert' : 'clock',
-      action: res.undo ? {
-        label: 'Desfazer',
-        onClick: async () => { await undoMoves(res.undo); toast('Desfeito — voltou como estava', { icon: 'undo' }); },
-      } : null,
+      action: gap ? { label: 'Adiantar', onClick: () => openGapSheet(findGap(res.end, { excludeKey: occ.key }) || gap) } : undoAction,
     });
   }
 

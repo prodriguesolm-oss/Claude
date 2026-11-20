@@ -6,7 +6,7 @@ import { createListView } from './listview.js';
 import { placeRow, eventRow, commitmentRow, upcomingByPlace } from '../rows.js';
 import { openPlaceForm, openEventForm, openCommitmentForm, openItemForm, openVisitForm } from '../forms.js';
 import { openPlaceDetail, openOccurrenceSheet } from '../sheets.js';
-import { occByKey, KIND_LABEL } from '../schedule.js';
+import { occByKey, KIND_LABEL, colorOf } from '../schedule.js';
 import { KIND_ICON } from '../icons.js';
 import { matchScore, byName, collator } from '../util.js';
 import { dayLabel, fmtDateShort, fmtHM, fmtRange, startOfDay, dateKey, atMinutes } from '../time.js';
@@ -214,7 +214,7 @@ function histRow(h, now) {
   const when = imported ? (h.start != null ? `${fmtDateShort(h.start, now)}` : 'feito') : h.dateOnly ? 'visitado' : h.start != null ? fmtRange(h.start, h.end) : `marcado às ${fmtHM(h.at)}`;
   const kindTxt = h.kind === 'place' ? 'Local visitado' : h.kind === 'visit' ? 'Visita a local' : h.kind === 'item' ? 'Horário avulso' : KIND_LABEL[h.kind];
   return html`<button type="button" class="row hrow" data-hid="${h.id}">
-    <span class="kicon k-${h.kind === 'place' ? 'visit' : h.kind}">${ic(KIND_ICON[h.kind], 'i sm')}</span>
+    <span class="kicon c-${colorOf(h)}">${ic(KIND_ICON[h.kind], 'i sm')}</span>
     <div class="row-main">
       <div class="row-title">${h.title}</div>
       <div class="row-sub">${kindTxt}${h.kind === 'event' && h.subtitle ? ` · ${h.subtitle}` : ''}</div>

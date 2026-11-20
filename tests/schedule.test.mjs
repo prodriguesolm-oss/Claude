@@ -280,3 +280,97 @@ test('cascata: não mexe em itens de outro dia, nem no que já estava sobreposto
   const virada = planCascade(occs, { key: 'x', start: T(MON, '10:00'), end: T(TUE, '00:30') }, { until: T(TUE, '00:00'), prev });
   assert.deepEqual(virada, []);
 });
+
+// ---------- Plano B, encurtar vizinho, adiantar, cores ----------
+import { optGroups, optMembers, planTrim, planPull, gapAfter, colorOf } from '../js/schedule.js';
+
+test('Plano B: opções lado a lado sem conflito entre si, letras A/B pela ordem', () => {
+  const s = emptyState(); s.items = [];
+  s.places.push({ id: 'p1', name: 'Trilha', category: 'aventura' }, { id: 'p2', name: 'Biblioteca', category: 'cultura' });
+  s.visits.push({ id: 'v1', placeId: 'p1', start: T(TUE, '17:00'), end: T(TUE, '19:00'), status: 'planned', optGroup: 'g1', optRank: 0 });
+  s.visits.push({ id: 'v2', placeId: 'p2', start: T(TUE, '17:00'), end: T(TUE, '19:00'), status: 'planned', optGroup: 'g1', optRank: 1 });
+  s.items.push({ id: 'i1', title: 'Jantar', start: T(TUE, '18:30'), end: T(TUE, '20:00'), status: 'planned' });
+  const occs = expand(s, T(TUE, '00:00'), T('2026-11-18', '00:00'), T(MON, '12:00'));
+  const v1 = occs.find((o) => o.key === 'visit:v1');
+  const v2 = occs.find((o) => o.key === 'visit:v2');
+  assert.equal(v1.opt.letter, 'A'); assert.equal(v2.opt.letter, 'B'); assert.equal(v2.opt.of, 2);
+  // a opção B não é conflito da A; o jantar continua sendo
+  const keys = findConflicts(occs, { key: 'visit:v1', start: v1.start, end: v1.end, optGroup: 'g1' }).map((o) => o.key);
+  assert.deepEqual(keys, ['item:i1']);
+  const laid = layoutColumns(occs.map((o) => ({ o, s: o.start, e: o.end })));
+  const byKey = Object.fromEntries(laid.map((it) => [it.o.key, it]));
+  assert.equal(byKey['visit:v1'].col, 0); assert.equal(byKey['visit:v2'].col, 1);
+  assert.equal(byKey['visit:v1'].conflict, true); // por causa do jantar
+  assert.equal(colorOf(v1), 'aventura'); assert.equal(colorOf(v2), 'cultura');
+  assert.equal(optMembers(s, 'g1').length, 2);
+});
+
+test('Plano B: depois do horário fica "escolha" e não vai ao histórico até sobrar uma opção', () => {
+  const s = emptyState(); s.items = [];
+  s.places.push({ id: 'p1', name: 'Trilha' }, { id: 'p2', name: 'Biblioteca' });
+  s.visits.push({ id: 'v1', placeId: 'p1', start: T(MON, '17:00'), end: T(MON, '19:00'), status: 'planned', optGroup: 'g1', optRank: 0 });
+  s.visits.push({ id: 'v2', placeId: 'p2', start: T(MON, '17:00'), end: T(MON, '19:00'), status: 'planned', optGroup: 'g1', optRank: 1 });
+  const now = T(MON, '20:00');
+  assert.equal(occByKey(s, 'visit:v1', now).status, 'choose');
+  assert.deepEqual(sweep(s, now, T(MON, '08:00')).visits, []);
+  // tirou a opção A: a B vira um item normal e é concluída
+  s.visits.splice(0, 1);
+  assert.equal(optGroups(s).get('g1').length, 1);
+  assert.equal(occByKey(s, 'visit:v2', now).status, 'done');
+  assert.deepEqual(sweep(s, now, T(MON, '08:00')).visits.map((v) => v.id), ['v2']);
+});
+
+test('Plano B numa ocorrência de compromisso semanal (via override)', () => {
+  const s = emptyState(); s.items = [];
+  const c = therapy();
+  c.overrides[`s1|${TUE}`] = { optGroup: 'g2', optRank: 0 };
+  s.commitments.push(c);
+  s.items.push({ id: 'i1', title: 'Outra coisa', start: T(TUE, '10:00'), end: T(TUE, '11:00'), status: 'planned', optGroup: 'g2', optRank: 1 });
+  const now = T(TUE, '12:00');
+  const occ = occByKey(s, `commitment:c1:s1|${TUE}`, now);
+  assert.equal(occ.opt.letter, 'A'); assert.equal(occ.status, 'choose');
+  const r = sweep(s, now, T(TUE, '09:00'));
+  assert.deepEqual(r.history.filter((h) => h.kind === 'commitment' && h.subKey === `s1|${TUE}`), []);
+  assert.deepEqual(r.items, []);
+});
+
+test('encurtar o vizinho: dormi até 9:30 e a terapia das 9 fica 9:30–10:00; o resto não muda', () => {
+  const mk = (key, a, b) => ({ key, start: T(TUE, a), end: T(TUE, b), status: 'planned' });
+  const sono = mk('sono', '00:00', '08:00');
+  const occs = [sono, mk('terapia', '09:00', '10:00'), mk('trabalho', '10:00', '13:00')];
+  const moves = planTrim(occs, { key: 'sono', start: T(TUE, '00:00'), end: T(TUE, '09:30') }, { prev: sono });
+  assert.deepEqual(moves.map((m) => [m.occ.key, m.start, m.end]), [['terapia', T(TUE, '09:30'), T(TUE, '10:00')]]);
+  // dormir até 9:50 deixaria a terapia com 10 min: não dá para só encurtar
+  assert.equal(planTrim(occs, { key: 'sono', start: T(TUE, '00:00'), end: T(TUE, '09:50') }, { prev: sono }), null);
+  // começar a terapia mais cedo encurta o fim do que vem antes
+  const t2 = planTrim([mk('cafe', '08:00', '09:00')], { key: 'terapia', start: T(TUE, '08:30'), end: T(TUE, '09:30') });
+  assert.deepEqual(t2.map((m) => [m.occ.key, m.start, m.end]), [['cafe', T(TUE, '08:00'), T(TUE, '08:30')]]);
+  // cair no meio de um item maior não é "encurtar"
+  assert.equal(planTrim([mk('trabalho', '10:00', '13:00')], { key: 'x', start: T(TUE, '11:00'), end: T(TUE, '11:30') }), null);
+});
+
+test('adiantar: cheguei 25 min antes — puxa só o próximo ou todos os seguintes do dia', () => {
+  const mk = (key, a, b, status = 'planned') => ({ key, start: T(TUE, a), end: T(TUE, b), status });
+  const trajeto = mk('trajeto', '08:00', '08:20'); // era até 08:45
+  const occs = [trajeto, mk('terapia', '08:45', '09:45'), mk('trabalho', '10:00', '13:00'), mk('jantar', '20:00', '21:00'),
+    { key: 'amanha', start: T('2026-11-18', '08:00'), end: T('2026-11-18', '09:00'), status: 'planned' }];
+  const g = gapAfter(occs, trajeto.end, { until: T('2026-11-18', '00:00'), excludeKey: 'trajeto' });
+  assert.equal(g.next.key, 'terapia'); assert.equal(g.from, T(TUE, '08:20')); assert.equal(g.gap, 25 * MIN);
+  const one = planPull(occs, g.next, g.gap);
+  assert.deepEqual(one.map((m) => [m.occ.key, m.start]), [['terapia', T(TUE, '08:20')]]);
+  const all = planPull(occs, g.next, g.gap, { all: true, until: T('2026-11-18', '00:00') });
+  assert.deepEqual(all.map((m) => [m.occ.key, m.start]), [['terapia', T(TUE, '08:20')], ['trabalho', T(TUE, '09:35')], ['jantar', T(TUE, '19:35')]]);
+});
+
+test('cores: classificação do evento, senão a do local; compromisso e avulso com cor própria', () => {
+  const s = emptyState(); s.items = [{ id: 'i1', title: 'x', start: T(TUE, '08:00'), end: T(TUE, '09:00') }];
+  s.places.push({ id: 'p1', name: 'Bar', category: 'bares' }, { id: 'p2', name: 'Lugar' });
+  s.events.push({ id: 'e1', name: 'Show', placeId: 'p1', start: T(TUE, '20:00'), end: T(TUE, '22:00') });
+  s.events.push({ id: 'e2', name: 'Peça', placeId: 'p1', category: 'cultura', start: T(TUE, '18:00'), end: T(TUE, '19:00') });
+  s.visits.push({ id: 'v1', placeId: 'p2', start: T(TUE, '10:00'), end: T(TUE, '11:00') });
+  s.commitments.push(therapy());
+  const occs = expand(s, T(TUE, '00:00'), T('2026-11-18', '00:00'), 0);
+  const c = Object.fromEntries(occs.map((o) => [o.key.split(':').slice(0, 2).join(':'), colorOf(o)]));
+  assert.equal(c['event:e1'], 'bares'); assert.equal(c['event:e2'], 'cultura'); assert.equal(c['visit:v1'], 'none');
+  assert.equal(c['item:i1'], 'item'); assert.equal(c['commitment:c1'], 'commitment');
+});

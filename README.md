@@ -47,27 +47,48 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
 | **Histórico** | Tudo que já foi feito, com data e horário. |
 
 ### Agenda
+- **Cores pela classificação**: Aventura em verde, Cultura em amarelo, Bares e restaurantes em vermelho,
+  Outros em ciano, sem classificação em cinza. Compromissos continuam azuis e horários avulsos, roxos.
 - **+** adiciona **Horário avulso** (só título e hora — ex.: "Shopping Leblon, comprar roupa", sem cadastrar
   local nem compromisso), **Evento**, **Local (visita)** ou **Compromisso**. Tocar num horário vazio da linha do
   tempo já abre o menu com aquele horário.
+- **Local** e **Evento** abrem uma escolha com **busca e filtros** iguais aos das abas (Aventura, Cultura, Bares,
+  ♥ Date, Favoritos, Não visitados…; em eventos, "Sem data" primeiro). Escolhido, o formulário já vem com o horário.
 - **Tocar num bloco** abre a ficha: adiar (+15 min, +1 h, +1 dia, +1 semana), antecipar, escolher outro horário,
-  marcar como feito / "não aconteceu", cancelar só aquela vez, editar.
+  marcar como feito / "não aconteceu", cancelar só aquela vez, editar, **Terminei agora**, **Criar um Plano B**.
 - **Arrastar direto na agenda** (de 15 em 15 min, sem abrir o item):
-  - **segurar a borda de baixo** de um bloco e arrastar muda só o **fim** (a duração) — ex.: o trabalho de 10–13
-    passa a terminar 12:00 só naquele dia;
+  - **segurar a borda de baixo** de um bloco (de 45 min ou mais) e arrastar muda só o **fim** (a duração) —
+    ex.: o trabalho de 10–13 passa a terminar 12:00 só naquele dia;
   - **segurar o meio** do bloco seleciona e **move** (início e fim juntos);
   - o bloco selecionado ganha duas **bolinhas** (início e fim) e passa a responder na hora, sem segurar;
     tocar fora tira a seleção;
-  - perto do topo ou do rodapé da tela a agenda rola sozinha; depois de cada arraste aparece **Desfazer**.
-- **Deslizar para os lados** troca de dia (na faixa da semana, troca de semana). Tocar no mês abre o calendário.
+  - perto do topo ou do rodapé da tela a agenda rola sozinha.
+- **↶ Desfazer / ↷ Refazer** ficam no canto esquerdo da agenda e valem para qualquer mudança (arrastar, apagar,
+  Plano B, adiantar, editar…). Cada gesto é um passo.
+- **Plano B**: **toque 3 vezes** num bloco (ou "Criar um Plano B" na ficha) e escolha outra coisa para o mesmo
+  horário — local, evento, compromisso ou horário avulso. As opções ficam **lado a lado** (Opção A, B…) sem
+  aviso de sobreposição. **Deslize para a esquerda** a que você não fez: a outra vira o item normal e vai para o
+  Histórico. Se o horário passar sem você escolher, as opções ficam tracejadas ("escolha a opção") e nada vai
+  para o Histórico até você escolher (na ficha: "Fiz esta opção").
+- **Deslizar um bloco para a esquerda** tira da agenda (com Desfazer). Se era algo **que já tinha acontecido**,
+  também sai do Histórico e o app pergunta **o que você fez nesse horário** (horário avulso, local, evento ou
+  compromisso) para o Histórico ficar certo. Um local que só estava "visitado" por causa dele volta a não visitado.
+- **Deslizar para os lados fora dos blocos** troca de dia (na faixa da semana, troca de semana). Tocar no mês abre o calendário.
 - **Compromissos recorrentes** (diários, semanais, mensais): alterar uma ocorrência (ex.: adiar a terapia de
   amanhã em 24 h) vale **só para aquela vez**. As outras continuam no horário de sempre, e nenhum compromisso
   duplicado é criado. Dá para "voltar ao horário de sempre" a qualquer momento.
 - **Mensais** usam o dia do mês (ex.: dia 5). Dias 29–31 caem no último dia nos meses mais curtos.
-- **Conflitos de horário**: por padrão, quando um item passa a cobrir outro, **o que vem depois é adiado em
-  cascata, só naquele dia** (trabalho esticado até 13:15 → o almoço das 13:00 vai para 13:15, e assim por diante).
-  O que começou antes não é empurrado: fica sobreposto (listrado, com ⚠) e o app avisa. Em **Ajustes** dá para
-  trocar por *perguntar sempre*, *adiar o novo* ou *permitir sobreposição*.
+- **Quando um horário bate com outro, o app pergunta** (mostrando o resultado de cada escolha):
+  - **Adiar tudo o que vem depois** (só naquele dia);
+  - **Só atrasar o início do próximo** — ex.: dormiu até 9:30 → a terapia vira 9:30–10:00 e o resto não muda
+    (ou, no sentido contrário, "só adiantar o fim" do anterior);
+  - **Colocar o novo depois** (no primeiro horário livre);
+  - **Manter sobreposto** (listrado, com ⚠);
+  - **Cancelar** volta como estava. Em **Ajustes** dá para fixar uma dessas respostas e não ser mais perguntado.
+- **Adiantar (fechar espaço)**: se você encurta algo (o trajeto previsto para 45 min levou 20), o aviso mostra
+  "25 min livres · **Adiantar**", com as opções **adiantar só o próximo item** ou **adiantar tudo o que vem
+  depois** naquele dia. Tocar num horário vazio antes de um item também oferece adiantá-lo, e
+  **Terminei agora** (na ficha de algo em andamento) encerra o item e oferece o mesmo.
 
 ### Notificações
 - Em qualquer item com horário (evento, visita a local, horário avulso, compromisso), toque no **sino**
@@ -120,6 +141,8 @@ Sem dependências e sem etapa de build: HTML + CSS + JavaScript (módulos ES).
 python3 -m http.server 8765      # servir localmente → http://localhost:8765
 npm test                         # testes da lógica da agenda (node:test)
 node tests/e2e.cjs               # teste de ponta a ponta num iPhone emulado (requer Playwright)
+node tests/agenda-drag.cjs       # arrastar na agenda (gestos de toque simulados)
+node tests/agenda-reorg.cjs      # Plano B, deslizar, perguntar ao sobrepor, adiantar, desfazer/refazer
 ```
 
 Estrutura:
@@ -129,7 +152,8 @@ index.html, manifest.webmanifest, sw.js   PWA (instalação + offline + recebime
 css/app.css                               visual estilo iOS (modo escuro)
 js/schedule.js                            lógica pura: recorrência, exceções por semana, conflitos, conclusão automática
 js/store.js, js/db.js                     estado, ações e persistência (IndexedDB + cópia local)
-js/forms.js, js/sheets.js                 formulários e fichas
+js/forms.js, js/sheets.js                 formulários, escolhas com filtros e fichas
+js/conflicts.js, js/reorg.js              perguntar ao sobrepor; Plano B, tirar da agenda, adiantar, terminar agora
 js/views/                                 abas
 js/push.js                                inscrição e sincronização dos avisos com o servidor
 server/                                   servidor de notificações (Cloudflare Worker) — ver server/README.md

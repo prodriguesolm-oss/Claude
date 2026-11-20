@@ -1,6 +1,6 @@
 // Service worker: deixa o app funcionando offline e abrindo instantaneamente.
 // Estratégia: responde do cache e atualiza em segundo plano (stale-while-revalidate).
-const VERSION = 'agentonator-v8';
+const VERSION = 'agentonator-v9';
 const ASSETS = [
   './',
   'index.html',
@@ -13,6 +13,7 @@ const ASSETS = [
   'js/icons.js',
   'js/photo.js',
   'js/push.js',
+  'js/reorg.js',
   'js/rows.js',
   'js/schedule.js',
   'js/sheets.js',

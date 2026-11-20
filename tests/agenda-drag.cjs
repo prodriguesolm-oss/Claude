@@ -52,14 +52,19 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   // ---------- padrão de conflitos ----------
   console.log('Padrão de conflitos');
   let pol = await page.evaluate(async () => (await import('./js/store.js')).state.settings.conflictPolicy);
-  assert(pol === 'cascade', 'instalação nova já vem com "adiar o que vem depois"');
+  assert(pol === 'ask', 'instalação nova já vem com "perguntar sempre"');
   await page.evaluate(async () => {
     const s = await import('./js/store.js');
-    await s.updateSettings({ conflictPolicy: 'ask', policyRev: undefined, installHintDismissed: true }); // como estava em quem já usava o app
+    await s.updateSettings({ conflictPolicy: 'cascade', policyRev: 2, installHintDismissed: true }); // como ficou na versão 8
   });
   await page.reload({ waitUntil: 'networkidle' }); await wait(500);
   pol = await page.evaluate(async () => (await import('./js/store.js')).state.settings.conflictPolicy);
-  assert(pol === 'cascade', 'quem já usava o app ("perguntar sempre") passa para o novo padrão uma vez');
+  assert(pol === 'ask', 'quem vinha da versão 8 (adiar automático) passa a ser perguntado, uma vez');
+  // este teste confere o arrastar com o "adiar em cascata" fixo (Ajustes); o "perguntar" tem teste próprio (agenda-reorg)
+  await page.evaluate(async () => (await import('./js/store.js')).updateSettings({ conflictPolicy: 'cascade' }));
+  await page.reload({ waitUntil: 'networkidle' }); await wait(500);
+  pol = await page.evaluate(async () => (await import('./js/store.js')).state.settings.conflictPolicy);
+  assert(pol === 'cascade', 'escolha fixa em Ajustes é respeitada depois de reabrir');
 
   // ---------- dados: trabalho semanal 10–13, almoço 13–14, reunião 14–15, jantar 20–21 ----------
   await page.evaluate(async (d) => {

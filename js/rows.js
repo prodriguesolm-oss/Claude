@@ -3,13 +3,13 @@ import { html, ic, toast } from './ui.js';
 import { state, toggleFavorite, toggleDate, setPlaceVisited } from './store.js';
 import { placeThumb, catBadge, starBtn, dateBtn } from './widgets.js';
 import { dayLabel, fmtHM, fmtRange, MONTHS_SHORT, WD_CAP, fmtMin, fmtDateShort, dateKey, parseDateKey } from './time.js';
-import { nextOccurrence, FREQ_LABEL } from './schedule.js';
+import { nextOccurrence, FREQ_LABEL, colorOf } from './schedule.js';
 import { KIND_ICON } from './icons.js';
 import { haptic } from './util.js';
 import { openPlaceDetail } from './sheets.js';
 import { openEventForm, openCommitmentForm } from './forms.js';
 
-export const STATUS_LABEL = { planned: 'Agendado', ongoing: 'Agora', done: 'Concluído', missed: 'Não aconteceu' };
+export const STATUS_LABEL = { planned: 'Agendado', ongoing: 'Agora', done: 'Concluído', missed: 'Não aconteceu', choose: 'Escolha a opção' };
 
 /** próximo evento/visita agendado de cada local */
 export function upcomingByPlace(now = Date.now()) {
@@ -111,9 +111,9 @@ export function occRow(o) {
       : o.kind === 'item' ? (o.subtitle ? `Avulso · ${o.subtitle}` : 'Horário avulso')
         : 'Visita ao local';
   return html`<button type="button" class="row occ-row st-${o.status}" data-key="${o.key}">
-    <span class="occ-bar k-${o.kind}"></span>
+    <span class="occ-bar c-${colorOf(o)}"></span>
     <div class="occ-times"><b>${fmtHM(o.start)}</b><span>${fmtHM(o.end)}</span></div>
-    <div class="row-main"><div class="row-title">${o.title}</div><div class="row-sub">${ic(KIND_ICON[o.kind], 'i xs')} ${sub}${o.overridden ? ' · alterado só desta vez' : ''}</div></div>
+    <div class="row-main"><div class="row-title">${o.opt && o.opt.of > 1 ? html`<span class="opt-tag">${o.opt.letter}</span>` : ''}${o.title}</div><div class="row-sub">${ic(KIND_ICON[o.kind], 'i xs')} ${sub}${o.overridden ? ' · alterado só desta vez' : ''}</div></div>
     ${o.status === 'done' ? ic('checkCircleFill', 'i ok') : o.status === 'missed' ? ic('ban', 'i muted') : o.status === 'ongoing' ? html`<span class="badge live">Agora</span>` : ''}
   </button>`;
 }

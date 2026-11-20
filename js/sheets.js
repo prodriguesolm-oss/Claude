@@ -14,7 +14,8 @@ import { placeThumb, catBadge, switchCell } from './widgets.js';
 import { openPlaceForm, openEventForm, openVisitForm, openCommitmentForm, openRescheduleForm, openItemForm } from './forms.js';
 import { moveWithConflicts } from './conflicts.js';
 import { occRow, slotsSummary, STATUS_LABEL } from './rows.js';
-import { expand, occByKey, findConflicts, KIND_LABEL, FREQ_LABEL, SCOPE_LABEL } from './schedule.js';
+import { expand, occByKey, findConflicts, optMembers, colorOf, KIND_LABEL, FREQ_LABEL, SCOPE_LABEL } from './schedule.js';
+import { addInSlot, offerPlanB, keepOnly, swipeRemove, finishNow, pullActions, applyPull, KIND_ACTIONS } from './reorg.js';
 import { KIND_ICON } from './icons.js';
 import { haptic } from './util.js';
 import {
@@ -61,7 +62,7 @@ export function openPlaceDetail(id) {
         <a class="cell" href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener"><span class="cell-ic">${ic('map', 'i sm')}</span><span class="grow">Abrir no Google Maps</span>${ic('chevR', 'i sm muted')}</a>
       </div>
       ${upcoming.length ? html`<div class="group-label">Na agenda</div><div class="group">${upcoming.slice(0, 8).map((o) => occRowWithDay(o, now))}</div>` : ''}
-      ${past.length ? html`<div class="group-label" style="margin-top:22px">Histórico neste local</div><div class="group">${past.map((h) => html`<div class="row mini"><span class="kicon sm k-${h.kind}">${ic(KIND_ICON[h.kind], 'i xs')}</span><div class="row-main"><div class="row-title">${h.title}</div><div class="row-sub">${h.source === 'import' ? 'Feito antes do Agentonator (sem data)' : h.dateOnly ? `${fmtDateShort(h.at, now)} · visitado` : `${dayLabel(h.at, now)} · ${h.start != null ? fmtRange(h.start, h.end) : `marcado às ${fmtHM(h.at)}`}`}</div></div></div>`)}</div>` : ''}
+      ${past.length ? html`<div class="group-label" style="margin-top:22px">Histórico neste local</div><div class="group">${past.map((h) => html`<div class="row mini"><span class="kicon sm c-${colorOf(h)}">${ic(KIND_ICON[h.kind], 'i xs')}</span><div class="row-main"><div class="row-title">${h.title}</div><div class="row-sub">${h.source === 'import' ? 'Feito antes do Agentonator (sem data)' : h.dateOnly ? `${fmtDateShort(h.at, now)} · visitado` : `${dayLabel(h.at, now)} · ${h.start != null ? fmtRange(h.start, h.end) : `marcado às ${fmtHM(h.at)}`}`}</div></div></div>`)}</div>` : ''}
     `);
   };
   render();
@@ -114,13 +115,15 @@ export function openOccurrenceSheet(key) {
     const past = occ.end <= now;
     const dur = Math.round((occ.end - occ.start) / MIN);
     const statusCells = [];
-    if (occ.status === 'planned' || occ.status === 'ongoing') statusCells.push(['done', 'checkCircle', 'Marcar como feito', '']);
+    const isOpt = !!occ.opt && occ.opt.of > 1;
+    const otherOpts = isOpt ? optMembers(state, occ.opt.g, now).filter((o) => o.key !== occ.key) : [];
+    if (occ.status === 'planned' || occ.status === 'ongoing') statusCells.push(['done', 'checkCircle', isOpt ? 'Fiz esta opção (marcar como feito)' : 'Marcar como feito', '']);
     if (occ.status === 'done') statusCells.push(past ? ['missed', 'ban', 'Não aconteceu (tirar do histórico)', ''] : ['planned', 'undo', 'Desfazer conclusão', '']);
     if (occ.status === 'missed') statusCells.push(['done', 'checkCircle', 'Marcar como feito', '']);
 
     setHTML(ctl.body, html`
-      <div class="occ-hero k-${occ.kind}">
-        <div class="occ-kind">${ic(KIND_ICON[occ.kind], 'i xs')} ${occ.kind === 'item' ? 'Horário avulso' : KIND_LABEL[occ.kind]}${occ.recurring ? ` · ${(FREQ_LABEL[occ.freq] || '').toLowerCase()}` : ''}<span class="pill-status st-${occ.status}">${STATUS_LABEL[occ.status]}</span></div>
+      <div class="occ-hero c-${colorOf(occ)}">
+        <div class="occ-kind">${isOpt ? html`<span class="opt-tag">${occ.opt.letter}</span>` : ''}${ic(KIND_ICON[occ.kind], 'i xs')} ${occ.kind === 'item' ? 'Horário avulso' : KIND_LABEL[occ.kind]}${occ.recurring ? ` · ${(FREQ_LABEL[occ.freq] || '').toLowerCase()}` : ''}<span class="pill-status st-${occ.status}">${STATUS_LABEL[occ.status]}</span></div>
         <div class="occ-title">${occ.title}</div>
         ${occ.kind === 'event' ? html`<div class="occ-sub">${ic('pin', 'i xs')} ${occ.subtitle}</div>` : ''}
         ${occ.kind === 'visit' && occ.subtitle ? html`<div class="occ-sub">${ic('pin', 'i xs')} ${occ.subtitle}</div>` : ''}
@@ -131,6 +134,11 @@ export function openOccurrenceSheet(key) {
         ${occ.overridden ? html`<div class="occ-note warnish">${ic('info', 'i xs')} Horário alterado só ${SCOPE_LABEL[occ.freq] || 'desta vez'} (original: ${fmtDateShort(parseDateKey(occ.origDate).getTime())})</div>` : ''}
       </div>
       ${conflicts.length ? html`<div class="warn">${ic('alert', 'i sm')}<div><b>Sobreposto com:</b> ${conflicts.map((o) => `${o.title} (${fmtRange(o.start, o.end)})`).join(', ')}</div></div>` : ''}
+      ${isOpt ? html`<div class="planb-box ${occ.status === 'choose' ? 'choose' : ''}">
+          <div class="planb-txt">${ic('split', 'i sm')}<div><b>Opção ${occ.opt.letter} de ${occ.opt.of}</b> · Plano B com ${otherOpts.map((o) => `${o.opt?.letter || ''} “${o.title}”`).join(', ')}.
+            ${occ.status === 'choose' ? html`<br><b>Já passou — qual você fez?</b> Toque abaixo, ou deslize para a esquerda na agenda a opção que não fez.` : html`<br>Na hora, fique com a que der certo.`}</div></div>
+          <button type="button" class="btn tinted sm full" data-act="keep-only">${ic('check', 'i sm')} Fiz esta opção (tirar as outras)</button>
+        </div>` : ''}
       <button type="button" class="bell-btn ${occ.remind != null ? 'on' : ''}" data-act="remind">
         ${ic(occ.remind != null ? 'bell' : 'bellOff', 'i sm')}
         <span class="grow">${occ.remind != null ? remindText(occ.remind) : 'Sem notificação · toque para ativar'}${occ.recurring ? html`<small>vale para todas as ocorrências</small>` : ''}</span>
@@ -151,6 +159,12 @@ export function openOccurrenceSheet(key) {
         <button type="button" data-act="resched" class="accent-btn">Outro…</button>
       </div>
       <div class="group-foot qa-foot">${occ.recurring ? `Mudanças aqui valem só ${SCOPE_LABEL[occ.freq]} — as outras ocorrências continuam no horário de sempre.` : 'Dica: na agenda, segure o bloco e arraste para mover; puxe a borda de baixo para mudar a duração.'}</div>
+      <div class="group-label">Reorganizar</div>
+      <div class="form-group">
+        ${occ.status === 'ongoing' ? html`<button type="button" class="cell" data-act="finish"><span class="cell-ic">${ic('stop', 'i sm')}</span><span class="grow"><span class="cell-title">Terminei agora</span><span class="cell-hint">Encerra às ${fmtHM(Math.floor(now / (5 * MIN)) * 5 * MIN)} e oferece adiantar o que vem depois</span></span></button>` : ''}
+        ${occ.status !== 'done' && occ.status !== 'missed' ? html`<button type="button" class="cell" data-act="planb"><span class="cell-ic">${ic('split', 'i sm')}</span><span class="grow"><span class="cell-title">${occ.opt ? 'Adicionar outra opção' : 'Criar um Plano B'}</span><span class="cell-hint">Outra opção para o mesmo horário (ex.: se chover). Atalho: toque 3 vezes no bloco</span></span></button>` : ''}
+        ${occ.status === 'done' ? html`<button type="button" class="cell" data-act="replace"><span class="cell-ic">${ic('swap', 'i sm')}</span><span class="grow"><span class="cell-title">Não foi isso que eu fiz…</span><span class="cell-hint">Tira da agenda e do Histórico e registra o que você fez no lugar. Atalho: deslize o bloco para a esquerda</span></span></button>` : ''}
+      </div>
       <div class="form-group">
         ${occ.overridden ? html`<button type="button" class="cell" data-act="restore"><span class="cell-ic">${ic('undo', 'i sm')}</span><span class="grow">Voltar ao horário de sempre</span></button>` : ''}
         ${statusCells.map(([v, icn, label]) => html`<button type="button" class="cell" data-status="${v}"><span class="cell-ic">${ic(icn, 'i sm')}</span><span class="grow">${label}</span></button>`)}
@@ -189,6 +203,11 @@ export function openOccurrenceSheet(key) {
       return;
     }
     const st = e.target.closest('[data-status]')?.dataset.status;
+    if (st === 'done' && occ.opt && occ.opt.of > 1) {
+      const kept = await keepOnly(occ);
+      if (kept && kept.status !== 'done') await setOccStatus(kept, 'done');
+      return;
+    }
     if (st) {
       await setOccStatus(occ, st);
       haptic();
@@ -197,6 +216,10 @@ export function openOccurrenceSheet(key) {
     }
     const act = e.target.closest('[data-act]')?.dataset.act;
     switch (act) {
+      case 'planb': ctl.close(); offerPlanB(occ); return;
+      case 'keep-only': await keepOnly(occ); return;
+      case 'finish': await finishNow(occ); return;
+      case 'replace': ctl.close(); swipeRemove(occ); return;
       case 'remind': {
         const cur = occ.remind;
         const v = await actionSheet({
@@ -259,30 +282,28 @@ export function openOccurrenceSheet(key) {
 
 // ---------- menu "+" da agenda ----------
 
-export async function openAddChooser(start) {
+/**
+ * Menu do "+" (ou de um horário vazio). Local e Evento abrem a escolha com busca e filtros.
+ * opts.gap: espaço livre onde o toque caiu -> oferece também "adiantar" o que vem depois.
+ */
+export async function openAddChooser(start, { gap = null } = {}) {
   const v = await actionSheet({
-    title: 'Adicionar à agenda',
-    message: start ? `${dayLabel(start)}, ${fmtHM(start)}` : undefined,
-    actions: [
-      { label: 'Horário avulso (só título)', value: 'item', icon: 'note' },
-      { label: 'Evento', value: 'event', icon: 'ticket' },
-      { label: 'Local (visita)', value: 'visit', icon: 'pin' },
-      { label: 'Compromisso', value: 'commitment', icon: 'repeat' },
-    ],
+    title: gap ? 'Este horário está livre' : 'Adicionar à agenda',
+    message: start ? `${dayLabel(start)}, ${fmtHM(start)}${gap ? ` · ${fmtDur(gap.gap / MIN)} livres até “${gap.next.title}”` : ''}` : undefined,
+    actions: [...KIND_ACTIONS, ...(gap ? pullActions(gap) : [])],
   });
-  if (v === 'item') return openItemForm({ prefill: { start } });
-  if (v === 'event') return openEventForm({ prefill: { start }, requireSchedule: true });
-  if (v === 'visit') return openVisitForm({ prefill: { start } });
-  if (v === 'commitment') return openCommitmentForm({ prefill: { start } });
-  return null;
+  if (!v) return null;
+  if (v === 'pull-next' || v === 'pull-all') return applyPull(gap, v === 'pull-all');
+  return addInSlot(v, { start });
 }
 
 // ---------- ajustes ----------
 
 const POLICIES = [
-  ['cascade', 'Adiar o que vem depois', 'Empurra os próximos itens do mesmo dia. O que começou antes fica sobreposto, com aviso'],
-  ['ask', 'Perguntar sempre', 'Mostra as opções a cada conflito'],
-  ['push-new', 'Adiar o novo', 'O novo vai para o primeiro horário livre (ao arrastar na agenda, vale "adiar o que vem depois")'],
+  ['ask', 'Perguntar sempre (recomendado)', 'Mostra o que cada escolha faz: adiar o que vem depois, só atrasar o início do próximo, manter sobreposto…'],
+  ['cascade', 'Adiar tudo o que vem depois', 'Empurra os próximos itens do mesmo dia. O que começou antes fica sobreposto, com aviso'],
+  ['trim', 'Só encurtar o vizinho', 'O próximo começa quando este termina (o fim dele não muda); quando não dá, pergunta'],
+  ['push-new', 'Adiar o novo', 'O novo vai para o primeiro horário livre (ao arrastar na agenda, pergunta)'],
   ['overlap', 'Permitir sobreposição', 'Salva os dois e só avisa na agenda'],
 ];
 const currentPolicy = (s) => (s.conflictPolicy === 'push-existing' ? 'cascade' : s.conflictPolicy);

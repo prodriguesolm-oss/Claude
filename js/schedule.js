@@ -13,6 +13,12 @@
 // Uma alteração numa ocorrência específica vira um "override" só dela e
 // NÃO altera a série: as demais ocorrências continuam no horário padrão.
 // Horário avulso (item): { id, title, note, start, end, status } — só título e hora, sem local.
+//
+// Plano B (opções para o mesmo horário): eventos, visitas, avulsos e compromissos únicos podem ter
+// { optGroup, optRank }; numa ocorrência de compromisso recorrente isso fica no override dela.
+// Itens do mesmo grupo aparecem lado a lado como Opção A, B... sem aviso de sobreposição.
+// Depois do horário, enquanto houver mais de uma opção, o status fica 'choose' (escolha qual fez)
+// e nada vai para o histórico até sobrar uma só.
 
 import { MIN, DAY, dateKey, startOfDay, addDays, atMinutes, parseDateKey, fmtHM, dayLabel, leadPhrase } from './time.js';
 
@@ -33,41 +39,79 @@ export function slotDurMin(slot) {
 
 export const occKeyOf = (slotId, dk) => `${slotId}|${dk}`;
 
-function derive(status, start, end, now) {
+function derive(status, start, end, now, multi = false) {
   if (status === 'done' || status === 'missed') return status;
-  if (end <= now) return 'done';
+  if (end <= now) return multi ? 'choose' : 'done';
   if (start <= now) return 'ongoing';
   return 'planned';
 }
 
 export const placeMap = (state) => new Map(state.places.map((p) => [p.id, p]));
 
-export function eventOcc(e, places, now) {
+/** cor do bloco: pela classificação (locais/eventos); compromissos e avulsos têm cor própria */
+export function colorOf(o) {
+  if (o.kind === 'commitment') return 'commitment';
+  if (o.kind === 'item') return 'item';
+  return o.category || 'none';
+}
+
+/**
+ * Grupos de opções (Plano B) com membros "vivos": g -> ranks ordenados.
+ * Vivo = está na agenda e não foi marcado como "não aconteceu".
+ */
+export function optGroups(state) {
+  const m = new Map();
+  const add = (g, r) => { if (!g) return; if (!m.has(g)) m.set(g, []); m.get(g).push(r || 0); };
+  for (const e of state.events) if (e.optGroup && e.start != null && e.status !== 'missed') add(e.optGroup, e.optRank);
+  for (const v of state.visits) if (v.optGroup && v.status !== 'missed') add(v.optGroup, v.optRank);
+  for (const it of state.items || []) if (it.optGroup && it.start != null && it.status !== 'missed') add(it.optGroup, it.optRank);
+  for (const c of state.commitments) {
+    if (c.kind === 'once') { if (c.optGroup && c.start != null && c.status !== 'missed') add(c.optGroup, c.optRank); continue; }
+    for (const o of Object.values(c.overrides || {})) if (o?.optGroup && !o.cancelled && o.status !== 'missed') add(o.optGroup, o.optRank);
+  }
+  for (const ranks of m.values()) ranks.sort((a, b) => a - b);
+  return m;
+}
+
+const LETTERS = 'ABCDEFGHIJ';
+function optInfo(rec, groups) {
+  const g = rec?.optGroup;
+  if (!g) return { opt: null, multi: false };
+  const ranks = groups?.get(g) || [];
+  const r = rec.optRank || 0;
+  const i = ranks.indexOf(r);
+  return { opt: { g, r, letter: LETTERS[i >= 0 ? i : 0] || '?', of: ranks.length }, multi: ranks.length > 1 };
+}
+
+export function eventOcc(e, places, now, groups) {
   const p = places.get(e.placeId);
+  const { opt, multi } = optInfo(e, groups);
   return {
     key: `event:${e.id}`, kind: 'event', refId: e.id,
     title: e.name || p?.name || 'Evento', subtitle: p?.name || 'Local removido',
-    placeId: e.placeId, category: e.category || null, favorite: !!e.favorite,
-    start: e.start, end: e.end, status: derive(e.status, e.start, e.end, now), recurring: false, remind: e.remind ?? null,
+    placeId: e.placeId, category: e.category || p?.category || null, favorite: !!e.favorite,
+    start: e.start, end: e.end, status: derive(e.status, e.start, e.end, now, multi), recurring: false, remind: e.remind ?? null, opt,
   };
 }
 
-export function visitOcc(v, places, now) {
+export function visitOcc(v, places, now, groups) {
   const p = places.get(v.placeId);
+  const { opt, multi } = optInfo(v, groups);
   return {
     key: `visit:${v.id}`, kind: 'visit', refId: v.id,
     title: p ? p.name : 'Local removido', subtitle: p?.address || 'Visita ao local',
     placeId: v.placeId, category: p?.category || null, favorite: !!p?.favorite,
-    start: v.start, end: v.end, status: derive(v.status, v.start, v.end, now), recurring: false, remind: v.remind ?? null,
+    start: v.start, end: v.end, status: derive(v.status, v.start, v.end, now, multi), recurring: false, remind: v.remind ?? null, opt,
   };
 }
 
-export function itemOcc(it, now) {
+export function itemOcc(it, now, groups) {
+  const { opt, multi } = optInfo(it, groups);
   return {
     key: `item:${it.id}`, kind: 'item', refId: it.id,
     title: it.title || 'Sem título', subtitle: it.note || '',
     placeId: null, category: null, favorite: false,
-    start: it.start, end: it.end, status: derive(it.status, it.start, it.end, now), recurring: false, remind: it.remind ?? null,
+    start: it.start, end: it.end, status: derive(it.status, it.start, it.end, now, multi), recurring: false, remind: it.remind ?? null, opt,
   };
 }
 
@@ -86,23 +130,25 @@ export function slotMatches(c, slot, dk) {
   return !!slot.days && slot.days.includes(d.getDay());
 }
 
-function recurringOcc(c, slot, dk, start, end, o, now) {
+function recurringOcc(c, slot, dk, start, end, o, now, groups) {
   const subKey = occKeyOf(slot.id, dk);
+  const { opt, multi } = optInfo(o, groups);
   return {
     key: `commitment:${c.id}:${subKey}`, kind: 'commitment', refId: c.id, subKey, slotId: slot.id, origDate: dk,
     freq: c.kind, title: c.name || 'Compromisso', subtitle: FREQ_LABEL[c.kind] || 'Semanal', placeId: null, category: null, favorite: false,
-    start, end, status: derive(o?.status, start, end, now), recurring: true, overridden: !!(o && o.start != null), remind: c.remind ?? null,
+    start, end, status: derive(o?.status, start, end, now, multi), recurring: true, overridden: !!(o && o.start != null), remind: c.remind ?? null, opt,
   };
 }
 
-export function commitmentOccs(c, from, to, now) {
+export function commitmentOccs(c, from, to, now, groups) {
   const out = [];
   if (c.kind === 'once') {
     if (c.start != null && c.end != null && c.start < to && c.end > from) {
+      const { opt, multi } = optInfo(c, groups);
       out.push({
         key: `commitment:${c.id}:once`, kind: 'commitment', refId: c.id, subKey: 'once',
         freq: 'once', title: c.name || 'Compromisso', subtitle: 'Compromisso único', placeId: null, category: null,
-        favorite: false, start: c.start, end: c.end, status: derive(c.status, c.start, c.end, now), recurring: false, remind: c.remind ?? null,
+        favorite: false, start: c.start, end: c.end, status: derive(c.status, c.start, c.end, now, multi), recurring: false, remind: c.remind ?? null, opt,
       });
     }
     return out;
@@ -119,7 +165,7 @@ export function commitmentOccs(c, from, to, now) {
       if (o && (o.cancelled || o.start != null)) continue;
       const start = atMinutes(dk, slot.startMin);
       const end = start + slotDurMin(slot) * MIN;
-      if (start < to && end > from) out.push(recurringOcc(c, slot, dk, start, end, o, now));
+      if (start < to && end > from) out.push(recurringOcc(c, slot, dk, start, end, o, now, groups));
     }
   }
   // 2) ocorrências remarcadas (podem ter ido para outro dia)
@@ -129,7 +175,7 @@ export function commitmentOccs(c, from, to, now) {
     const [slotId, dk] = k.split('|');
     const slot = slots.find((s) => s.id === slotId);
     if (!slot || !slotMatches(c, slot, dk)) continue;
-    out.push(recurringOcc(c, slot, dk, o.start, o.end, o, now));
+    out.push(recurringOcc(c, slot, dk, o.start, o.end, o, now, groups));
   }
   return out;
 }
@@ -137,44 +183,65 @@ export function commitmentOccs(c, from, to, now) {
 /** todas as ocorrências que tocam o intervalo [from, to) */
 export function expand(state, from, to, now = Date.now()) {
   const places = placeMap(state);
+  const groups = optGroups(state);
   const out = [];
   for (const e of state.events) {
     if (e.start == null || e.end == null) continue;
-    if (e.start < to && e.end > from) out.push(eventOcc(e, places, now));
+    if (e.start < to && e.end > from) out.push(eventOcc(e, places, now, groups));
   }
   for (const v of state.visits) {
     if (v.start == null || v.end == null) continue;
-    if (v.start < to && v.end > from) out.push(visitOcc(v, places, now));
+    if (v.start < to && v.end > from) out.push(visitOcc(v, places, now, groups));
   }
   for (const it of state.items || []) {
     if (it.start == null || it.end == null) continue;
-    if (it.start < to && it.end > from) out.push(itemOcc(it, now));
+    if (it.start < to && it.end > from) out.push(itemOcc(it, now, groups));
   }
-  for (const c of state.commitments) out.push(...commitmentOccs(c, from, to, now));
-  out.sort((a, b) => a.start - b.start || a.end - b.end || a.title.localeCompare(b.title));
+  for (const c of state.commitments) out.push(...commitmentOccs(c, from, to, now, groups));
+  out.sort((a, b) => a.start - b.start || a.end - b.end || (a.opt?.r ?? 0) - (b.opt?.r ?? 0) || a.title.localeCompare(b.title));
   return out;
+}
+
+/** todas as ocorrências (vivas) de um grupo de opções */
+export function optMembers(state, g, now = Date.now()) {
+  if (!g) return [];
+  const out = [];
+  const keys = [];
+  for (const e of state.events) if (e.optGroup === g) keys.push(`event:${e.id}`);
+  for (const v of state.visits) if (v.optGroup === g) keys.push(`visit:${v.id}`);
+  for (const it of state.items || []) if (it.optGroup === g) keys.push(`item:${it.id}`);
+  for (const c of state.commitments) {
+    if (c.kind === 'once') { if (c.optGroup === g) keys.push(`commitment:${c.id}:once`); continue; }
+    for (const [k, o] of Object.entries(c.overrides || {})) if (o?.optGroup === g) keys.push(`commitment:${c.id}:${k}`);
+  }
+  for (const k of keys) {
+    const o = occByKey(state, k, now);
+    if (o && o.status !== 'missed') out.push(o);
+  }
+  return out.sort((a, b) => (a.opt?.r ?? 0) - (b.opt?.r ?? 0));
 }
 
 /** reconstrói uma ocorrência a partir da chave (ex.: para reabrir a ficha após mudanças) */
 export function occByKey(state, key, now = Date.now()) {
   const [kind, id, sub] = String(key).split(':');
   const places = placeMap(state);
+  const groups = optGroups(state);
   if (kind === 'event') {
     const e = state.events.find((x) => x.id === id);
-    return e && e.start != null ? eventOcc(e, places, now) : null;
+    return e && e.start != null ? eventOcc(e, places, now, groups) : null;
   }
   if (kind === 'visit') {
     const v = state.visits.find((x) => x.id === id);
-    return v ? visitOcc(v, places, now) : null;
+    return v ? visitOcc(v, places, now, groups) : null;
   }
   if (kind === 'item') {
     const it = (state.items || []).find((x) => x.id === id);
-    return it && it.start != null ? itemOcc(it, now) : null;
+    return it && it.start != null ? itemOcc(it, now, groups) : null;
   }
   if (kind === 'commitment') {
     const c = state.commitments.find((x) => x.id === id);
     if (!c) return null;
-    if (sub === 'once') return commitmentOccs(c, -Infinity, Infinity, now)[0] || null;
+    if (sub === 'once') return commitmentOccs(c, -Infinity, Infinity, now, groups)[0] || null;
     const [slotId, dk] = String(sub).split('|');
     const slot = (c.slots || []).find((s) => s.id === slotId);
     if (!slot) return null;
@@ -182,7 +249,7 @@ export function occByKey(state, key, now = Date.now()) {
     if (o?.cancelled) return null;
     const start = o?.start ?? atMinutes(dk, slot.startMin);
     const end = o?.end ?? start + slotDurMin(slot) * MIN;
-    return recurringOcc(c, slot, dk, start, end, o, now);
+    return recurringOcc(c, slot, dk, start, end, o, now, groups);
   }
   return null;
 }
@@ -194,16 +261,19 @@ export function nextOccurrence(c, now = Date.now()) {
 }
 
 const blocking = (o) => o.status !== 'done' && o.status !== 'missed';
+/** opções do mesmo Plano B não "brigam" entre si */
+const sameGroup = (o, cand) => !!(cand.optGroup && o.opt?.g === cand.optGroup);
+const others = (o, cand) => o.key !== cand.key && blocking(o) && !sameGroup(o, cand);
 
-/** ocorrências que se sobrepõem ao candidato (ignora concluídas/canceladas) */
+/** ocorrências que se sobrepõem ao candidato (ignora concluídas/canceladas e opções do mesmo grupo) */
 export function findConflicts(occs, cand) {
-  return occs.filter((o) => o.key !== cand.key && blocking(o) && overlaps(o, cand));
+  return occs.filter((o) => others(o, cand) && overlaps(o, cand));
 }
 
 /** Política "adiar o existente": empurra, em cascata, o que colidir para depois do candidato. */
 export function planPushExisting(occs, cand) {
   const fixed = [{ start: cand.start, end: cand.end }];
-  let pool = occs.filter((o) => o.key !== cand.key && blocking(o));
+  let pool = occs.filter((o) => others(o, cand));
   const moves = [];
   for (let guard = 0; guard < 80; guard++) {
     const hits = pool.filter((o) => fixed.some((f) => overlaps(f, o))).sort((a, b) => a.start - b.start);
@@ -230,15 +300,59 @@ export function planPushExisting(occs, cand) {
  * `prev` = intervalo antigo do candidato: o que já estava sobreposto a ele antes continua como estava.
  */
 export function planCascade(occs, cand, { until = Infinity, prev = null } = {}) {
-  const pool = occs.filter((o) => o.key !== cand.key && blocking(o)
+  const pool = occs.filter((o) => others(o, cand)
     && o.start >= cand.start && o.start < until
     && !(prev && overlaps(o, prev)));
   return planPushExisting(pool, cand);
 }
 
+/**
+ * "Só encurtar o vizinho": quem vem depois começa quando o candidato termina (o fim dele fica igual);
+ * quem começou antes termina quando o candidato começa. O resto da agenda não muda.
+ * Retorna null quando não dá (o vizinho ficaria com menos de `minDur`, ou o candidato cai no meio dele).
+ */
+export function planTrim(occs, cand, { prev = null, minDur = 15 * MIN } = {}) {
+  const hits = findConflicts(occs, cand).filter((o) => !(prev && overlaps(o, prev)));
+  if (!hits.length) return null;
+  const moves = [];
+  for (const o of hits) {
+    if (o.start >= cand.start) {
+      if (o.end - cand.end < minDur) return null;
+      moves.push({ occ: o, start: cand.end, end: o.end });
+    } else {
+      if (o.end > cand.end || cand.start - o.start < minDur) return null;
+      moves.push({ occ: o, start: o.start, end: cand.start });
+    }
+  }
+  return moves;
+}
+
+/**
+ * "Adiantar": puxa para mais cedo, em `delta` ms, o próximo item (com as opções do grupo dele)
+ * ou todos os itens que começam a partir dele, até `until` (fim do dia).
+ */
+export function planPull(occs, next, delta, { all = false, until = Infinity } = {}) {
+  const pool = occs.filter((o) => blocking(o) && o.start >= next.start && o.start < until);
+  const chosen = all ? pool : pool.filter((o) => o.key === next.key || (next.opt && o.opt?.g === next.opt.g));
+  return chosen.map((o) => ({ occ: o, start: o.start - delta, end: o.end - delta }));
+}
+
+/**
+ * Espaço livre logo depois de `t` no mesmo dia: o próximo item que começa em/depois de `t`
+ * e o fim do que vem imediatamente antes dele. -> { next, from, gap } | null
+ */
+export function gapAfter(occs, t, { until = Infinity, excludeKey = null } = {}) {
+  const live = occs.filter((o) => blocking(o) && o.key !== excludeKey);
+  const next = live.filter((o) => o.start >= t && o.start < until).sort((a, b) => a.start - b.start)[0];
+  if (!next) return null;
+  const before = live.filter((o) => o !== next && o.start < next.start && o.end <= next.start && !(next.opt && o.opt?.g === next.opt.g));
+  const from = Math.max(t, ...before.map((o) => o.end));
+  return { next, from, gap: next.start - from };
+}
+
 /** Política "adiar o novo": coloca o candidato no primeiro espaço livre a partir do horário pedido. */
 export function planPushNew(occs, cand) {
-  const pool = occs.filter((o) => o.key !== cand.key && blocking(o));
+  const pool = occs.filter((o) => others(o, cand));
   const dur = cand.end - cand.start;
   let s = cand.start;
   for (let guard = 0; guard < 200; guard++) {
@@ -305,6 +419,8 @@ export function applyMove(state, occ, start, end, now = Date.now()) {
  */
 export function sweep(state, now, lastSweep) {
   const places = placeMap(state);
+  const groups = optGroups(state);
+  const undecided = (rec) => !!(rec.optGroup && (groups.get(rec.optGroup)?.length || 0) > 1); // Plano B ainda sem escolha
   const res = { events: [], visits: [], items: [], places: [], history: [] };
   const touched = new Map();
   const markPlace = (pid, at, via) => {
@@ -313,21 +429,21 @@ export function sweep(state, now, lastSweep) {
     touched.set(pid, { ...p, visited: true, visitedAt: at, visitedVia: via, updatedAt: now });
   };
   for (const e of state.events) {
-    if ((e.status || 'planned') !== 'planned' || e.start == null || e.end == null || e.end > now) continue;
+    if ((e.status || 'planned') !== 'planned' || e.start == null || e.end == null || e.end > now || undecided(e)) continue;
     const ne = { ...e, status: 'done', doneAt: e.end, updatedAt: now };
     res.events.push(ne);
     res.history.push(historyFor(eventOcc(ne, places, now), 'auto', e.end));
     markPlace(e.placeId, e.end, 'event');
   }
   for (const v of state.visits) {
-    if ((v.status || 'planned') !== 'planned' || v.start == null || v.end == null || v.end > now) continue;
+    if ((v.status || 'planned') !== 'planned' || v.start == null || v.end == null || v.end > now || undecided(v)) continue;
     const nv = { ...v, status: 'done', doneAt: v.end, updatedAt: now };
     res.visits.push(nv);
     res.history.push(historyFor(visitOcc(nv, places, now), 'auto', v.end));
     markPlace(v.placeId, v.end, 'visit');
   }
   for (const it of state.items || []) {
-    if ((it.status || 'planned') !== 'planned' || it.start == null || it.end == null || it.end > now) continue;
+    if ((it.status || 'planned') !== 'planned' || it.start == null || it.end == null || it.end > now || undecided(it)) continue;
     const ni = { ...it, status: 'done', doneAt: it.end, updatedAt: now };
     res.items.push(ni);
     res.history.push(historyFor(itemOcc(ni, now), 'auto', it.end));
@@ -335,8 +451,8 @@ export function sweep(state, now, lastSweep) {
   for (const c of state.commitments) {
     const from = Math.max(lastSweep || 0, c.createdAt || 0);
     if (from >= now) continue;
-    for (const o of commitmentOccs(c, from, now, now)) {
-      if (o.end <= from || o.end > now || o.status === 'missed') continue;
+    for (const o of commitmentOccs(c, from, now, now, groups)) {
+      if (o.end <= from || o.end > now || o.status === 'missed' || o.status === 'choose') continue;
       if (c.createdAt && o.start < c.createdAt) continue; // já tinha começado antes do cadastro
       res.history.push(historyFor(o, 'auto', o.end));
     }
@@ -364,7 +480,7 @@ export function computeReminders(state, now = Date.now(), days = 45) {
 
 /** distribui blocos sobrepostos em colunas (visual da agenda do dia) */
 export function layoutColumns(items) {
-  items.sort((a, b) => a.s - b.s || b.e - a.e);
+  items.sort((a, b) => a.s - b.s || b.e - a.e || (a.o.opt?.r ?? 0) - (b.o.opt?.r ?? 0));
   let cluster = [];
   let clusterEnd = -Infinity;
   const flush = () => {
@@ -376,7 +492,8 @@ export function layoutColumns(items) {
     }
     for (const it of cluster) {
       it.cols = cols.length;
-      it.conflict = cluster.some((o) => o !== it && o.s < it.e && it.s < o.e && blocking(o.o) && blocking(it.o));
+      it.conflict = cluster.some((o) => o !== it && o.s < it.e && it.s < o.e && blocking(o.o) && blocking(it.o)
+        && !(o.o.opt && it.o.opt && o.o.opt.g === it.o.opt.g));
     }
   };
   for (const it of items) {
