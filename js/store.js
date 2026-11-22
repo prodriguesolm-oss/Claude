@@ -238,6 +238,9 @@ export async function init() {
   }
 
   if (!state.lastSweep) await commit([put('meta', { key: 'lastSweep', value: Date.now() })], { silent: true, record: false });
+  // compromissos não ficam no Histórico (versão 10): limpa os registros antigos
+  const oldCommitHist = state.history.filter((h) => h.kind === 'commitment');
+  if (oldCommitHist.length) await commit(oldCommitHist.map((h) => del('history', h.id)), { silent: true, record: false });
   await runSweep();
   db.requestPersist().then((p) => { state.persisted = p; });
 }
@@ -487,7 +490,7 @@ export async function setOccStatus(occ, status) {
       ops.push(put('commitments', { ...c, overrides: ov, updatedAt: now }));
     }
   }
-  if (status === 'done') {
+  if (status === 'done' && occ.kind !== 'commitment') { // compromissos não vão para o Histórico
     const at = Math.min(now, occ.end);
     ops.push(put('history', historyFor(occ, 'manual', at)));
     ops.push(...markPlaceVisitedOps(occ.placeId, at, occ.kind));
@@ -596,11 +599,6 @@ export async function removeFromAgenda(occ) {
     }
   }
   await commit(ops);
-  if (remaining && remaining.kind === 'commitment' && remaining.end <= now) {
-    // a varredura não volta no tempo para compromissos: registra a opção que ficou
-    const fresh = occByKey(state, remaining.key, now);
-    if (fresh && fresh.status === 'done') await commit([put('history', historyFor(fresh, 'auto', fresh.end))], { record: 'attach' });
-  }
   await runSweep();
   return { remaining: remaining ? occByKey(state, remaining.key, now) : null };
 }
@@ -665,7 +663,7 @@ export async function importData(data) {
   if (!data || data.app !== 'agentonator') throw new Error('Arquivo não é um backup do Agentonator.');
   const ops = [];
   for (const s of [...COLLECTIONS, 'photos']) ops.push({ type: 'clear', store: s });
-  for (const s of COLLECTIONS) for (const v of data[s] || []) if (v && v.id) ops.push(put(s, v));
+  for (const s of COLLECTIONS) for (const v of data[s] || []) if (v && v.id && !(s === 'history' && v.kind === 'commitment')) ops.push(put(s, v)); // compromissos não vão para o Histórico
   for (const p of data.photos || []) if (p && p.id && p.full) ops.push(put('photos', p));
   ops.push(put('meta', { key: 'settings', value: { ...DEFAULT_SETTINGS, ...(data.settings || {}) } }));
   ops.push(put('meta', { key: 'lastSweep', value: data.lastSweep || Date.now() }));

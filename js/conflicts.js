@@ -7,7 +7,7 @@
 // Nos Ajustes dá para fixar uma dessas escolhas.
 import { state, applyMoves } from './store.js';
 import { expand, findConflicts, planPushExisting, planPushNew, planCascade, planTrim, commitmentOccs, overlaps } from './schedule.js';
-import { actionSheet, alertDialog, toast, esc } from './ui.js';
+import { actionSheet, alertDialog, esc } from './ui.js';
 import { DAY, fmtHM, fmtRange, dayLabel, startOfDay, addDays } from './time.js';
 
 const POLICY_LABEL = {
@@ -116,40 +116,14 @@ export async function resolveConflicts(cand, { prev = null, drag = false } = {})
   return plans.overlap();
 }
 
-/** "2 itens adiados", "Terapia fica 09:30–10:00", "sobreposto com Trabalho" — pedaços de texto para os avisos */
-export function resolutionNotes(res) {
-  const notes = [];
-  if (!res) return notes;
-  if (res.moves.length) {
-    if (res.policy === 'trim') notes.push(res.moves.length === 1 ? `${short(res.moves[0].occ.title)} fica ${fmtRange(res.moves[0].start, res.moves[0].end)}` : `${res.moves.length} itens encurtados`);
-    else notes.push(res.moves.length === 1 ? '1 item adiado' : `${res.moves.length} itens adiados`);
-  }
-  if (res.leftover?.length) notes.push(`sobreposto com ${short(res.leftover[0].title)}${res.leftover.length > 1 ? ` +${res.leftover.length - 1}` : ''}`);
-  return notes;
-}
-
-export function reportResolution(res, requestedStart) {
-  if (!res || !res.policy) return;
-  if (res.policy === 'push-new') {
-    if (res.start !== requestedStart) toast(`Encaixado às ${fmtHM(res.start)} (${dayLabel(res.start)})`, { icon: 'clock' });
-    return;
-  }
-  const notes = resolutionNotes(res);
-  if (!notes.length) return;
-  const text = res.moves.length && res.policy !== 'trim' ? `${notes[0]} para abrir espaço${notes[1] ? ` · ${notes[1]}` : ''}` : `Salvo · ${notes.join(' · ')}`;
-  toast(text, { icon: res.leftover?.length ? 'alert' : res.policy === 'trim' ? 'scissors' : 'forward', ms: 3200 });
-}
-
 /**
  * Move/redimensiona uma ocorrência existente, tratando conflitos.
  * Retorna false (cancelado) ou { start, end, moves, policy, leftover }.
- * opts.quiet: não mostra aviso (quem chamou mostra o seu).
  */
-export async function moveWithConflicts(occ, start, end, { drag = false, quiet = false } = {}) {
+export async function moveWithConflicts(occ, start, end, { drag = false } = {}) {
   const res = await resolveConflicts({ key: occ.key, start, end, title: occ.title, optGroup: occ.opt?.g }, { prev: { start: occ.start, end: occ.end }, drag });
   if (!res) return false;
   await applyMoves([{ occ, start: res.start, end: res.end }, ...res.moves]);
-  if (res.policy && !quiet) reportResolution(res, start);
   return res;
 }
 

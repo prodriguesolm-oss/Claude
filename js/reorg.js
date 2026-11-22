@@ -1,8 +1,8 @@
 // Reorganizar a agenda: Plano B (opções para o mesmo horário), tirar da agenda deslizando,
 // "o que você fez nesse horário?", fechar espaços (adiantar o que vem depois) e "terminei antes".
-import { state, removeFromAgenda, undo, applyMoves, keepOnlyOption } from './store.js';
+import { state, removeFromAgenda, applyMoves, keepOnlyOption } from './store.js';
 import { expand, gapAfter, planPull, SCOPE_LABEL } from './schedule.js';
-import { actionSheet, toast, esc } from './ui.js';
+import { actionSheet, toast, esc } from './ui.js'; // toast só para dicas de uso, nunca para anunciar mudanças (há ↶ ↷)
 import { openVisitForm, openEventForm, openItemForm, openCommitmentForm, openPlacePicker, openEventPicker } from './forms.js';
 import { MIN, fmtHM, fmtRange, fmtDur, dayLabel, startOfDay, addDays } from './time.js';
 
@@ -10,14 +10,15 @@ const endOfDay = (t) => addDays(startOfDay(t), 1);
 const short = (t) => (t.length > 24 ? `${t.slice(0, 23)}…` : t);
 const LETTERS = 'ABCDEFGHIJ';
 
-/** botão "Desfazer" dos avisos: usa o mesmo desfazer da agenda (↶) */
-export const undoAction = {
-  label: 'Desfazer',
-  onClick: async () => {
-    const what = await undo();
-    if (what) toast(`Desfeito: ${what}`, { icon: 'undo' });
-  },
-};
+// ---------- "adiantar" depois de encurtar: botão dentro do espaço livre da agenda ----------
+let gapHint = null; // { from, excludeKey }
+const gapSubs = new Set();
+export const getGapHint = () => gapHint;
+export function setGapHint(h) {
+  gapHint = h;
+  for (const fn of [...gapSubs]) fn(h);
+}
+export function onGapHint(fn) { gapSubs.add(fn); return () => gapSubs.delete(fn); }
 
 export const KIND_ACTIONS = [
   { label: 'Horário avulso (só título)', value: 'item', icon: 'note' },
@@ -69,10 +70,7 @@ export async function offerPlanB(occ) {
 
 /** "fiz esta opção": deixa só ela */
 export async function keepOnly(occ) {
-  const n = (occ.opt?.of || 1) - 1;
-  const kept = await keepOnlyOption(occ);
-  toast(`Ficou só “${short(occ.title)}”${n ? ` · ${n === 1 ? 'a outra opção saiu' : `${n} opções saíram`}` : ''}`, { icon: 'check', action: undoAction });
-  return kept;
+  return keepOnlyOption(occ);
 }
 
 /**
@@ -85,24 +83,17 @@ export async function swipeRemove(occ) {
   const wasDone = occ.status === 'done';
   const isOption = !!occ.opt && occ.opt.of > 1;
   const { remaining } = await removeFromAgenda(occ);
-  const scope = occ.recurring ? ` · só ${SCOPE_LABEL[occ.freq] || 'desta vez'}` : '';
-  const where = occ.kind === 'event' ? ' · continua em Eventos, sem data' : '';
-  if (isOption) {
-    toast(remaining ? `Opção ${occ.opt.letter} saiu · ficou “${short(remaining.title)}”` : `Opção ${occ.opt.letter} saiu`, { icon: 'trash', action: undoAction });
-    return { remaining };
-  }
-  if (wasDone) {
+  if (wasDone && !isOption) {
+    const scope = occ.recurring ? ` (só ${SCOPE_LABEL[occ.freq] || 'desta vez'})` : '';
+    const from = occ.kind === 'commitment' ? 'da agenda' : 'da agenda e do Histórico';
     const v = await actionSheet({
       title: 'O que você fez nesse horário?',
-      message: `“${occ.title}” saiu da agenda e do Histórico${scope}. Registre o que fez de ${fmtRange(occ.start, occ.end)} (${dayLabel(occ.start)}) para o Histórico ficar certinho.`,
+      message: `“${occ.title}” saiu ${from}${scope}. Registre o que fez de ${fmtRange(occ.start, occ.end)} (${dayLabel(occ.start)}) para o Histórico ficar certinho.`,
       actions: KIND_ACTIONS,
       cancel: 'Nada — deixar vazio',
     });
     if (v) await addInSlot(v, { start: occ.start, end: occ.end, replacing: true });
-    else toast(`“${short(occ.title)}” tirado da agenda${where}`, { icon: 'trash', action: undoAction });
-    return { remaining };
   }
-  toast(`“${short(occ.title)}” tirado da agenda${scope}${where}`, { icon: 'trash', action: undoAction });
   return { remaining };
 }
 
@@ -128,8 +119,8 @@ export function pullActions(g) {
 export async function applyPull(g, all) {
   const moves = planPull(g.occs, g.next, g.gap, { all, until: endOfDay(g.next.start) });
   if (!moves.length) return null;
+  setGapHint(null);
   await applyMoves(moves);
-  toast(all && moves.length > 1 ? `${moves.length} itens adiantados ${fmtDur(g.gap / MIN)}` : `“${short(g.next.title)}” adiantado para ${fmtHM(moves[0].start)}`, { icon: 'arrowUp', action: undoAction });
   return moves;
 }
 
@@ -145,16 +136,19 @@ export async function openGapSheet(g) {
   return applyPull(g, v === 'pull-all');
 }
 
-/** "terminei antes": encerra agora e oferece adiantar o que vem depois */
+/** "terminei antes": encerra agora; se abrir um espaço, a agenda mostra o botão "Adiantar" nele */
 export async function finishNow(occ) {
   const now = Date.now();
   const end = Math.max(occ.start + 5 * MIN, Math.floor(now / (5 * MIN)) * 5 * MIN);
   if (end >= occ.end) return null;
   await applyMoves([{ occ, start: occ.start, end }]);
-  const g = findGap(end, { excludeKey: occ.key });
-  toast(`“${short(occ.title)}” encerrado às ${fmtHM(end)}${g ? ` · ${fmtDur(g.gap / MIN)} livres` : ''}`, {
-    icon: 'stop',
-    action: g ? { label: 'Adiantar', onClick: () => openGapSheet(findGap(end, { excludeKey: occ.key })) } : undoAction,
-  });
+  offerGapAfter(end, occ.key);
   return end;
+}
+
+/** depois de encurtar algo: se ficou um espaço logo depois, mostra "Adiantar" dentro dele na agenda */
+export function offerGapAfter(end, excludeKey) {
+  const g = findGap(end, { excludeKey });
+  setGapHint(g && g.from === end ? { from: end, excludeKey } : null);
+  return g;
 }

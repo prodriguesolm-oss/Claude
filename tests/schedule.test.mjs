@@ -120,7 +120,7 @@ test('adiar o novo encontra o primeiro horário livre', () => {
   assert.equal(r.end, T(TUE, '12:30'));
 });
 
-test('varredura conclui eventos/visitas passados, marca local visitado e registra compromissos', () => {
+test('varredura conclui eventos/visitas passados e marca local visitado; compromissos não vão para o histórico', () => {
   const s = emptyState();
   s.places.push({ id: 'p1', name: 'Trilha da Vista Chinesa', visited: false });
   s.places.push({ id: 'p2', name: 'Museu', visited: false });
@@ -135,7 +135,10 @@ test('varredura conclui eventos/visitas passados, marca local visitado e registr
   assert.deepEqual(r.visits.map((v) => v.id), ['v1']);
   assert.deepEqual(r.places.map((p) => p.id).sort(), ['p1', 'p2']);
   const kinds = r.history.map((h) => h.id).sort();
-  assert.deepEqual(kinds, ['h:commitment:c1:s2|2026-11-16', 'h:event:e1', 'h:visit:v1']);
+  assert.deepEqual(kinds, ['h:event:e1', 'h:visit:v1']);
+  // a terapia que já passou continua aparecendo como feita na agenda
+  const past = commitmentOccs(s.commitments[0], T(MON, '00:00'), T(MON, '23:59'), now);
+  assert.ok(past.length && past.every((o) => o.end > now || o.status === 'done'));
 });
 
 test('varredura não registra ocorrências marcadas como "não aconteceu" nem anteriores ao cadastro', () => {

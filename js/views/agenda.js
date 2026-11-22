@@ -9,12 +9,12 @@ import { html, ic, setHTML, $, toast } from '../ui.js';
 import { fab } from '../widgets.js';
 import { occRow } from '../rows.js';
 import { openOccurrenceSheet, openAddChooser, openSettings, doExport } from '../sheets.js';
-import { moveWithConflicts, resolutionNotes } from '../conflicts.js';
-import { expand, occByKey, layoutColumns, colorOf, FREQ_LABEL, SCOPE_LABEL } from '../schedule.js';
-import { offerPlanB, swipeRemove, findGap, openGapSheet, undoAction } from '../reorg.js';
+import { moveWithConflicts } from '../conflicts.js';
+import { expand, occByKey, layoutColumns, colorOf, FREQ_LABEL } from '../schedule.js';
+import { offerPlanB, swipeRemove, findGap, openGapSheet, getGapHint, setGapHint, onGapHint, offerGapAfter } from '../reorg.js';
 import { haptic, isIOS, isStandalone } from '../util.js';
 import {
-  MIN, startOfDay, addDays, startOfWeek, dateKey, parseDateKey, atMinutes, fmtDayLong, fmtRange, fmtHM,
+  MIN, startOfDay, addDays, startOfWeek, dateKey, parseDateKey, atMinutes, fmtDayLong, fmtRange, fmtHM, fmtDur,
   dayLabel, fmtDateShort, MONTHS, MONTHS_SHORT, WD_LETTER, WD_LONG, cap, roundUp, minutesOfDay, pad,
 } from '../time.js';
 
@@ -74,6 +74,7 @@ export function createAgendaView() {
     bindDrag(els.body);
     onUndoChange(syncUndo);
     syncUndo();
+    onGapHint(() => { if (mode === 'day') renderDay(); });
   }
 
   function syncUndo() {
@@ -83,6 +84,7 @@ export function createAgendaView() {
   }
 
   function select(day) {
+    if (startOfDay(day) !== selected) setGapHint(null);
     selected = startOfDay(day);
     selKey = null;
     scrollPending = true;
@@ -105,16 +107,16 @@ export function createAgendaView() {
     }
     const act = t.closest('[data-act]')?.dataset.act;
     switch (act) {
-      case 'undo': {
-        const what = await undo();
-        toast(what ? `Desfeito: ${what}` : 'Nada para desfazer', { icon: 'undo' });
+      case 'undo': setGapHint(null); haptic(); await undo(); return;
+      case 'redo': setGapHint(null); haptic(); await redo(); return;
+      case 'gap': {
+        const h = getGapHint();
+        const g = h && findGap(h.from, { excludeKey: h.excludeKey });
+        setGapHint(null);
+        if (g) await openGapSheet(g);
         return;
       }
-      case 'redo': {
-        const what = await redo();
-        toast(what ? `Refeito: ${what}` : 'Nada para refazer', { icon: 'redo' });
-        return;
-      }
+      case 'gap-close': setGapHint(null); return;
       case 'today': select(Date.now()); return;
       case 'prev-week': select(addDays(selected, -7)); return;
       case 'next-week': select(addDays(selected, 7)); return;
@@ -304,9 +306,24 @@ export function createAgendaView() {
 
     const nowLine = now >= ds && now < de ? html`<div class="tl-now" style="top:${y(now)}px"><span>${fmtHM(now)}</span></div>` : '';
 
+    // depois de encurtar algo: botão "Adiantar" dentro do espaço que ficou livre (some ao usar, fechar ou trocar de dia)
+    let gapBtn = '';
+    const gh = getGapHint();
+    if (gh && gh.from >= ds && gh.from < de) {
+      const g = findGap(gh.from, { excludeKey: gh.excludeKey });
+      if (g && g.from === gh.from) {
+        // logo abaixo do que foi encurtado (blocos curtos têm altura mínima de 24px), alinhado à direita
+        const prev = g.occs.find((o) => o.key === gh.excludeKey);
+        const prevBottom = prev ? y(Math.max(prev.start, ds)) + Math.max(24, y(prev.end) - y(Math.max(prev.start, ds)) - 2) : y(g.from);
+        const room = y(g.next.start) - prevBottom;
+        const top = prevBottom + Math.max(3, (room - 32) / 2);
+        gapBtn = html`<div class="tl-gap" style="top:${top}px"><button type="button" class="tl-gap-go" data-act="gap">${ic('arrowUp', 'i xs')} Adiantar <small>· ${fmtDur(g.gap / MIN)} livres</small></button><button type="button" class="tl-gap-x" data-act="gap-close" aria-label="Deixar o espaço">${ic('x', 'i xs')}</button></div>`;
+      }
+    }
+
     setHTML(els.body, html`
       ${occs.length ? '' : html`<div class="day-empty">${ic('sparkle', 'i sm')} Dia livre. Toque num horário ou no <b>+</b> para adicionar.</div>`}
-      <div class="tl" style="height:${total + 10}px">${hours}${blocks}${nowLine}</div>`);
+      <div class="tl" style="height:${total + 10}px">${hours}${blocks}${nowLine}${gapBtn}</div>`);
     syncSelection();
   }
 
@@ -557,12 +574,12 @@ export function createAgendaView() {
       if (!occ) { renderDeferred = false; update(); return; }
       let res = false;
       try {
-        res = await moveWithConflicts(occ, p.ns, p.ne, { drag: true, quiet: true });
+        res = await moveWithConflicts(occ, p.ns, p.ne, { drag: true });
       } finally {
         renderDeferred = false;
         update();
       }
-      if (res) announce(occ, res, p.kind);
+      if (res) announce(occ, res);
     };
 
     const cancel = () => {
@@ -599,23 +616,13 @@ export function createAgendaView() {
     });
   }
 
-  /** aviso depois de arrastar: "Desfazer", ou "Adiantar" quando a mudança abriu um espaço antes do próximo item */
-  function announce(occ, res, kind) {
-    const what = kind === 'end' ? `${occ.title} até ${fmtHM(res.end)}`
-      : kind === 'start' ? `${occ.title} a partir das ${fmtHM(res.start)}`
-        : `${occ.title}: ${fmtRange(res.start, res.end)}`;
-    const scope = occ.recurring ? ` · só ${SCOPE_LABEL[occ.freq] || 'desta vez'}` : '';
-    const notes = resolutionNotes(res).map((n) => ` · ${n}`).join('');
-    let gap = null;
-    if (res.end < occ.end && res.start === occ.start && !res.leftover?.length) { // terminou antes do previsto (não quando só mudou de lugar)
-      const g = findGap(res.end, { excludeKey: occ.key });
-      const before = g && g.next.start - occ.end;
-      if (g && g.from === res.end && g.gap > Math.max(0, before) + 4 * MIN) gap = g;
-    }
-    toast(`${what}${scope}${notes}${gap ? ` · ${Math.round(gap.gap / MIN)} min livres` : ''}`, {
-      icon: res.leftover?.length ? 'alert' : 'clock',
-      action: gap ? { label: 'Adiantar', onClick: () => openGapSheet(findGap(res.end, { excludeKey: occ.key }) || gap) } : undoAction,
-    });
+  /** depois de arrastar: sem aviso (há ↶ ↷); se o item ficou mais curto e abriu um espaço antes do próximo, mostra "Adiantar" nele */
+  function announce(occ, res) {
+    if (!(res.end < occ.end && res.start === occ.start && !res.leftover?.length)) { setGapHint(null); return; } // só quando terminou antes do previsto
+    const g = findGap(res.end, { excludeKey: occ.key });
+    const before = g && g.next.start - occ.end;
+    if (g && g.from === res.end && g.gap > Math.max(0, before) + 4 * MIN) offerGapAfter(res.end, occ.key);
+    else setGapHint(null);
   }
 
   /** nas primeiras vezes que um bloco é selecionado, explica o que dá para fazer */

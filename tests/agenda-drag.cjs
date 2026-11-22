@@ -93,14 +93,13 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   const next = new Date(D); next.setDate(next.getDate() + 1);
   assert((await occs(dk(next))).Madrugada === '00:15–01:00', 'o dia seguinte não foi tocado');
   let tt = await toastText();
-  console.log('    aviso:', JSON.stringify(tt.replace(/\n/g, ' ')));
-  assert(/Trabalho até 13:15/.test(tt) && /só nesta semana/.test(tt) && /2 itens adiados/.test(tt) && /Desfazer/.test(tt), 'aviso explica o que mudou e oferece Desfazer');
+  assert(!/13:15|adiad|Desfazer/.test(tt), 'sem aviso (pop-up) anunciando a mudança — o ↶ fica na agenda');
   await shot('02-cascata');
   let st = await page.evaluate(async () => { const { state } = await import('./js/store.js'); return { n: state.commitments.length, ov: Object.keys(state.commitments[0].overrides || {}).length }; });
   assert(st.n === 1 && st.ov === 1, 'continua um único compromisso semanal; só esta ocorrência foi ajustada');
 
   // ---------- 2) desfazer ----------
-  await page.locator('.toast-act').click(); await wait(600);
+  await page.locator('[data-act=undo]').click(); await wait(600);
   o = await occs();
   assert(o.Trabalho === '10:00–13:00' && o['Almoço'] === '13:00–14:00' && o['Reunião'] === '14:00–15:00', 'Desfazer devolve tudo ao que era');
   st = await page.evaluate(async () => Object.keys((await import('./js/store.js')).state.commitments[0].overrides || {}).length);
@@ -154,9 +153,9 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   o = await occs();
   tt = await toastText();
   assert(o['Almoço'] === '11:30–12:30' && o.Trabalho === '10:00–12:00', 'almoço por cima do fim do trabalho: o trabalho NÃO é jogado para depois');
-  assert(/sobreposto com Trabalho/.test(tt), 'aviso diz que ficou sobreposto');
+  assert(!/sobreposto/.test(tt) && await block('Almoço').evaluate((el) => el.classList.contains('conflict')), 'sem pop-up; a sobreposição aparece no próprio bloco (⚠)');
   await shot('05-sobreposto');
-  await page.locator('.toast-act').click(); await wait(600);
+  await page.locator('[data-act=undo]').click(); await wait(600);
   assert((await occs())['Almoço'] === '12:00–13:00', 'Desfazer volta o almoço');
   await page.touchscreen.tap(tl.x + 200, (await box('Reunião')).y + 110); await wait(350); // tira a seleção
 
@@ -204,7 +203,7 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   assert(top1 > top0 + 100 && top1 < top0 + 600, 'a agenda rola sozinha (em velocidade controlável) quando o dedo chega perto do rodapé');
   assert(endMin(o['Reunião']) >= 15 * 60 + (y1 - y0) + 90, 'e o fim acompanha além do que o dedo percorreu');
   assert(endMin(o['Reunião']) <= 20 * 60 ? o.Jantar === '20:00–21:00' : startMin(o.Jantar) >= endMin(o['Reunião']), 'o jantar só é adiado se a reunião esticada chegar nele');
-  await page.locator('.toast-act').click(); await wait(600);
+  await page.locator('[data-act=undo]').click(); await wait(600);
   o = await occs();
   assert(o['Reunião'] === '14:00–15:00' && o.Jantar === '20:00–21:00', 'Desfazer também devolve o que a cascata empurrou');
 

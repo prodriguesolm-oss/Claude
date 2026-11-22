@@ -207,7 +207,9 @@ export const createFavoritesView = () => createListView({
 
 // ---------- Histórico ----------
 
-const HIST_GROUP = { place: 'place', visit: 'place', event: 'event', commitment: 'commitment', item: 'item' };
+const HIST_GROUP = { place: 'place', visit: 'place', event: 'event', item: 'item' };
+// compromissos (rotina) não entram no Histórico
+const histList = () => state.history.filter((h) => h.kind !== 'commitment');
 
 function histRow(h, now) {
   const imported = h.source === 'import';
@@ -228,33 +230,33 @@ export const createHistoryView = () => createListView({
   title: 'Histórico',
   placeholder: 'Buscar no histórico',
   initialFilter: 'all',
-  subtitle: () => plural(state.history.length, 'registro', 'registros'),
+  subtitle: () => plural(histList().length, 'registro', 'registros'),
   headerExtra: () => {
+    const H = histList();
     const visited = state.places.filter((p) => p.visited).length;
-    const ev = state.history.filter((h) => h.kind === 'event').length;
-    const cm = state.history.filter((h) => h.kind === 'commitment').length;
+    const ev = H.filter((h) => h.kind === 'event').length;
+    const it = H.filter((h) => h.kind === 'item').length;
     return html`<div class="stats">
       <div class="stat k-visit"><b>${visited}</b><span>locais visitados</span></div>
       <div class="stat k-event"><b>${ev}</b><span>eventos feitos</span></div>
-      <div class="stat k-commitment"><b>${cm}</b><span>compromissos cumpridos</span></div>
+      <div class="stat c-item"><b>${it}</b><span>horários avulsos</span></div>
     </div>`;
   },
   filters: () => {
-    const H = state.history;
+    const H = histList();
     return [
       ['all', 'Tudo', H.length],
       ['place', 'Locais', H.filter((h) => HIST_GROUP[h.kind] === 'place').length],
       ['event', 'Eventos', H.filter((h) => h.kind === 'event').length],
-      ['commitment', 'Compromissos', H.filter((h) => h.kind === 'commitment').length],
       ['item', 'Avulsos', H.filter((h) => h.kind === 'item').length],
     ];
   },
   renderList: ({ q, filter }) => {
-    if (!state.history.length) {
-      return html`<div class="empty"><div class="empty-ic">${ic('history', 'i xl')}</div><div class="empty-title">Histórico vazio</div><div class="empty-text">Aqui aparece tudo que você já fez: locais marcados como visitados e itens da agenda cujo horário passou sem alteração (marcados como feitos automaticamente).</div></div>`;
+    if (!histList().length) {
+      return html`<div class="empty"><div class="empty-ic">${ic('history', 'i xl')}</div><div class="empty-title">Histórico vazio</div><div class="empty-text">Aqui aparece tudo que você já fez: locais visitados, eventos e horários avulsos cujo horário passou sem alteração (marcados como feitos automaticamente). Compromissos da rotina não entram aqui.</div></div>`;
     }
     const now = Date.now();
-    const list = state.history
+    const list = histList()
       .filter((h) => filter === 'all' || HIST_GROUP[h.kind] === filter)
       .filter((h) => matchScore(q, h.title, h.subtitle) > 0)
       .sort((a, b) => b.at - a.at);
@@ -315,7 +317,6 @@ async function openHistoryEntry(id) {
     if (occ) await setOccStatus(occ, 'missed');
     else if (h.kind === 'place' && state.places.some((p) => p.id === h.placeId && p.visited)) await setPlaceVisited(h.placeId, false);
     else await deleteHistory(id);
-    toast('Removido do histórico', { icon: 'trash' });
   }
 }
 
@@ -336,7 +337,6 @@ function openVisitedDateSheet(placeId) {
       const v = c.body.querySelector('input[name=d]').value;
       if (!v) return false;
       await setPlaceVisitedDate(placeId, atMinutes(v, 12 * 60));
-      toast(`Visita registrada em ${fmtDateShort(atMinutes(v, 12 * 60))}`, { icon: 'check' });
       return true;
     },
   });

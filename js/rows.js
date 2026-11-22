@@ -123,15 +123,13 @@ export async function handleRowAction(t) {
   const { act, id } = t.dataset;
   switch (act) {
     case 'fav': {
-      const on = await toggleFavorite(t.dataset.kind, id);
+      await toggleFavorite(t.dataset.kind, id);
       haptic();
-      toast(on ? 'Adicionado aos favoritos' : 'Removido dos favoritos', { icon: 'star' });
       return true;
     }
     case 'date': {
-      const on = await toggleDate(t.dataset.kind, id);
+      await toggleDate(t.dataset.kind, id);
       haptic();
-      toast(on ? 'Marcado como Date ♥' : 'Removido dos Dates', { icon: 'heart' });
       return true;
     }
     case 'visited': {
@@ -139,7 +137,6 @@ export async function handleRowAction(t) {
       if (!p) return true;
       await setPlaceVisited(id, !p.visited);
       haptic();
-      toast(!p.visited ? 'Marcado como visitado · no Histórico' : 'Desmarcado como visitado', { icon: 'check' });
       return true;
     }
     case 'open-place': openPlaceDetail(id); return true;

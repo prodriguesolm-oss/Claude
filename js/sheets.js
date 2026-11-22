@@ -80,7 +80,6 @@ export function openPlaceDetail(id) {
     if (e.target.dataset.ref !== 'visitedDate' || !e.target.value) return;
     await setPlaceVisitedDate(id, atMinutes(e.target.value, 12 * 60));
     haptic();
-    toast(`Visita registrada em ${fmtDateShort(atMinutes(e.target.value, 12 * 60))}`, { icon: 'check' });
   });
   ctl.body.addEventListener('click', async (e) => {
     const key = e.target.closest('[data-key]')?.dataset.key;
@@ -88,9 +87,9 @@ export function openPlaceDetail(id) {
     const act = e.target.closest('[data-act]')?.dataset.act;
     const p = state.places.find((x) => x.id === id);
     if (!p) return;
-    if (act === 'fav') { const on = await toggleFavorite('place', id); haptic(); toast(on ? 'Adicionado aos favoritos' : 'Removido dos favoritos', { icon: 'star' }); }
-    if (act === 'date') { const on = await toggleDate('place', id); haptic(); toast(on ? 'Marcado como Date ♥' : 'Removido dos Dates', { icon: 'heart' }); }
-    if (act === 'visited') { await setPlaceVisited(id, !p.visited); haptic(); toast(!p.visited ? 'Marcado como visitado · no Histórico' : 'Desmarcado', { icon: 'check' }); }
+    if (act === 'fav') { await toggleFavorite('place', id); haptic(); }
+    if (act === 'date') { await toggleDate('place', id); haptic(); }
+    if (act === 'visited') { await setPlaceVisited(id, !p.visited); haptic(); }
     if (act === 'visit') openVisitForm({ prefill: { placeId: id } });
     if (act === 'event') openEventForm({ prefill: { placeId: id } });
   });
@@ -118,7 +117,7 @@ export function openOccurrenceSheet(key) {
     const isOpt = !!occ.opt && occ.opt.of > 1;
     const otherOpts = isOpt ? optMembers(state, occ.opt.g, now).filter((o) => o.key !== occ.key) : [];
     if (occ.status === 'planned' || occ.status === 'ongoing') statusCells.push(['done', 'checkCircle', isOpt ? 'Fiz esta opção (marcar como feito)' : 'Marcar como feito', '']);
-    if (occ.status === 'done') statusCells.push(past ? ['missed', 'ban', 'Não aconteceu (tirar do histórico)', ''] : ['planned', 'undo', 'Desfazer conclusão', '']);
+    if (occ.status === 'done') statusCells.push(past ? ['missed', 'ban', occ.kind === 'commitment' ? 'Não aconteceu' : 'Não aconteceu (tirar do histórico)', ''] : ['planned', 'undo', 'Desfazer conclusão', '']);
     if (occ.status === 'missed') statusCells.push(['done', 'checkCircle', 'Marcar como feito', '']);
 
     setHTML(ctl.body, html`
@@ -163,7 +162,7 @@ export function openOccurrenceSheet(key) {
       <div class="form-group">
         ${occ.status === 'ongoing' ? html`<button type="button" class="cell" data-act="finish"><span class="cell-ic">${ic('stop', 'i sm')}</span><span class="grow"><span class="cell-title">Terminei agora</span><span class="cell-hint">Encerra às ${fmtHM(Math.floor(now / (5 * MIN)) * 5 * MIN)} e oferece adiantar o que vem depois</span></span></button>` : ''}
         ${occ.status !== 'done' && occ.status !== 'missed' ? html`<button type="button" class="cell" data-act="planb"><span class="cell-ic">${ic('split', 'i sm')}</span><span class="grow"><span class="cell-title">${occ.opt ? 'Adicionar outra opção' : 'Criar um Plano B'}</span><span class="cell-hint">Outra opção para o mesmo horário (ex.: se chover). Atalho: toque 3 vezes no bloco</span></span></button>` : ''}
-        ${occ.status === 'done' ? html`<button type="button" class="cell" data-act="replace"><span class="cell-ic">${ic('swap', 'i sm')}</span><span class="grow"><span class="cell-title">Não foi isso que eu fiz…</span><span class="cell-hint">Tira da agenda e do Histórico e registra o que você fez no lugar. Atalho: deslize o bloco para a esquerda</span></span></button>` : ''}
+        ${occ.status === 'done' ? html`<button type="button" class="cell" data-act="replace"><span class="cell-ic">${ic('swap', 'i sm')}</span><span class="grow"><span class="cell-title">Não foi isso que eu fiz…</span><span class="cell-hint">${occ.kind === 'commitment' ? 'Tira da agenda' : 'Tira da agenda e do Histórico'} e registra o que você fez no lugar. Atalho: deslize o bloco para a esquerda</span></span></button>` : ''}
       </div>
       <div class="form-group">
         ${occ.overridden ? html`<button type="button" class="cell" data-act="restore"><span class="cell-ic">${ic('undo', 'i sm')}</span><span class="grow">Voltar ao horário de sempre</span></button>` : ''}
@@ -198,7 +197,7 @@ export function openOccurrenceSheet(key) {
       shiftBtn.disabled = true;
       try {
         const res = await moveWithConflicts(occ, occ.start + m * MIN, occ.end + m * MIN);
-        if (res && !res.policy) { haptic(); toast(`${m > 0 ? 'Adiado' : 'Antecipado'}: ${dayLabel(res.start)} ${fmtRange(res.start, res.end)}`, { icon: 'clock' }); }
+        if (res) haptic();
       } finally { shiftBtn.disabled = false; }
       return;
     }
@@ -211,14 +210,13 @@ export function openOccurrenceSheet(key) {
     if (st) {
       await setOccStatus(occ, st);
       haptic();
-      toast(st === 'done' ? 'Feito! Registrado no Histórico' : st === 'missed' ? 'Marcado como não aconteceu' : 'Conclusão desfeita', { icon: st === 'done' ? 'check' : 'undo' });
       return;
     }
     const act = e.target.closest('[data-act]')?.dataset.act;
     switch (act) {
       case 'planb': ctl.close(); offerPlanB(occ); return;
       case 'keep-only': await keepOnly(occ); return;
-      case 'finish': await finishNow(occ); return;
+      case 'finish': await finishNow(occ); haptic(); ctl.close(); return; // se abrir um espaço, a agenda mostra "Adiantar" nele
       case 'replace': ctl.close(); swipeRemove(occ); return;
       case 'remind': {
         const cur = occ.remind;
@@ -234,15 +232,13 @@ export function openOccurrenceSheet(key) {
         const minutes = v === 'off' ? null : Number(v);
         await setRemind(occ.kind, occ.refId, minutes);
         haptic();
-        if (minutes == null) toast('Notificação desligada', { icon: 'bellOff' });
-        else if (!pushReady()) alertDialog({ title: 'Lembrete salvo', message: 'Falta só ativar as notificações deste iPhone: Agenda → botão de ajustes → Notificações.' });
-        else toast(minutes === 0 ? 'Vou avisar na hora do início' : `Vou avisar ${leadLabel(minutes)} antes`, { icon: 'bell' });
+        if (minutes != null && !pushReady()) alertDialog({ title: 'Lembrete salvo', message: 'Falta só ativar as notificações deste iPhone: Agenda → botão de ajustes → Notificações.' });
         break;
       }
       case 'resched':
-        openRescheduleForm(occ, (s, en) => moveWithConflicts(occ, s, en).then((r) => { if (r && !r.policy) toast('Horário atualizado', { icon: 'clock' }); return r; }));
+        openRescheduleForm(occ, (s, en) => moveWithConflicts(occ, s, en));
         break;
-      case 'restore': await restoreOccurrence(occ); toast('Horário original restaurado', { icon: 'undo' }); break;
+      case 'restore': await restoreOccurrence(occ); haptic(); break;
       case 'open-event': openEventForm({ id: occ.refId }); break;
       case 'edit-visit': openVisitForm({ id: occ.refId }); break;
       case 'edit-item': openItemForm({ id: occ.refId }); break;
@@ -250,28 +246,28 @@ export function openOccurrenceSheet(key) {
       case 'edit-commitment': openCommitmentForm({ id: occ.refId }); break;
       case 'cancel-occ': {
         const ok = await confirmDialog({ title: `Cancelar só ${SCOPE_LABEL[occ.freq]}?`, message: `“${occ.title}” de ${dayLabel(occ.start)} sai da agenda. As outras ocorrências continuam.`, ok: 'Cancelar ocorrência', cancel: 'Voltar', destructive: true });
-        if (ok) { await cancelOccurrence(occ); toast('Ocorrência cancelada', { icon: 'ban' }); ctl.close(); }
+        if (ok) { await cancelOccurrence(occ); ctl.close(); }
         break;
       }
       case 'delete-commitment': {
         const ok = await confirmDialog({ title: `Excluir “${occ.title}”?`, message: 'O histórico é mantido.', ok: 'Excluir', destructive: true });
-        if (ok) { await deleteCommitment(occ.refId); toast('Compromisso excluído', { icon: 'trash' }); ctl.close(); }
+        if (ok) { await deleteCommitment(occ.refId); ctl.close(); }
         break;
       }
-      case 'unschedule': await unscheduleEvent(occ.refId); toast('Evento tirado da agenda (continua na aba Eventos)', { icon: 'calendar' }); ctl.close(); break;
+      case 'unschedule': await unscheduleEvent(occ.refId); ctl.close(); break;
       case 'delete-event': {
         const ok = await confirmDialog({ title: `Excluir “${occ.title}”?`, message: 'O histórico é mantido.', ok: 'Excluir', destructive: true });
-        if (ok) { await deleteEvent(occ.refId); toast('Evento excluído', { icon: 'trash' }); ctl.close(); }
+        if (ok) { await deleteEvent(occ.refId); ctl.close(); }
         break;
       }
       case 'delete-item': {
         const ok = await confirmDialog({ title: `Excluir “${occ.title}”?`, message: 'O histórico é mantido.', ok: 'Excluir', destructive: true });
-        if (ok) { await deleteItem(occ.refId); toast('Excluído da agenda', { icon: 'trash' }); ctl.close(); }
+        if (ok) { await deleteItem(occ.refId); ctl.close(); }
         break;
       }
       case 'delete-visit': {
         const ok = await confirmDialog({ title: 'Excluir esta visita?', message: 'O local continua cadastrado.', ok: 'Excluir', destructive: true });
-        if (ok) { await deleteVisit(occ.refId); toast('Visita excluída', { icon: 'trash' }); ctl.close(); }
+        if (ok) { await deleteVisit(occ.refId); ctl.close(); }
         break;
       }
       default: break;

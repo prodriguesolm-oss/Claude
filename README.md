@@ -44,7 +44,7 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
 | **Eventos** | Eventos sempre ligados a um local cadastrado, com data/hora opcional, classificação, ★ favorito e ♥ Date. Eventos já feitos podem ter a data corrigida sem deixar de estar feitos. |
 | **Compromissos** | Lista da sua rotina, agrupada por frequência: **diário**, **semanal**, **mensal** ou **único**. |
 | **Favoritos** | Locais e eventos marcados com ★, com filtro por tipo, e o filtro **♥ Date** com todos os locais e eventos marcados como Date. |
-| **Histórico** | Tudo que já foi feito, com data e horário. |
+| **Histórico** | Tudo que já foi feito, com data e horário: locais visitados, eventos e horários avulsos (compromissos da rotina não entram). |
 
 ### Agenda
 - **Cores pela classificação**: Aventura em verde, Cultura em amarelo, Bares e restaurantes em vermelho,
@@ -64,13 +64,14 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
     tocar fora tira a seleção;
   - perto do topo ou do rodapé da tela a agenda rola sozinha.
 - **↶ Desfazer / ↷ Refazer** ficam no canto esquerdo da agenda e valem para qualquer mudança (arrastar, apagar,
-  Plano B, adiantar, editar…). Cada gesto é um passo.
+  Plano B, adiantar, editar…). Cada gesto é um passo. Por isso o app não mostra avisos do tipo "salvo / adiado /
+  removido" — a mudança aparece na própria agenda e, se não era isso, é só tocar em ↶.
 - **Plano B**: **toque 3 vezes** num bloco (ou "Criar um Plano B" na ficha) e escolha outra coisa para o mesmo
   horário — local, evento, compromisso ou horário avulso. As opções ficam **lado a lado** (Opção A, B…) sem
   aviso de sobreposição. **Deslize para a esquerda** a que você não fez: a outra vira o item normal e vai para o
   Histórico. Se o horário passar sem você escolher, as opções ficam tracejadas ("escolha a opção") e nada vai
   para o Histórico até você escolher (na ficha: "Fiz esta opção").
-- **Deslizar um bloco para a esquerda** tira da agenda (com Desfazer). Se era algo **que já tinha acontecido**,
+- **Deslizar um bloco para a esquerda** tira da agenda (dá para voltar com ↶). Se era algo **que já tinha acontecido**,
   também sai do Histórico e o app pergunta **o que você fez nesse horário** (horário avulso, local, evento ou
   compromisso) para o Histórico ficar certo. Um local que só estava "visitado" por causa dele volta a não visitado.
 - **Deslizar para os lados fora dos blocos** troca de dia (na faixa da semana, troca de semana). Tocar no mês abre o calendário.
@@ -85,10 +86,10 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
   - **Colocar o novo depois** (no primeiro horário livre);
   - **Manter sobreposto** (listrado, com ⚠);
   - **Cancelar** volta como estava. Em **Ajustes** dá para fixar uma dessas respostas e não ser mais perguntado.
-- **Adiantar (fechar espaço)**: se você encurta algo (o trajeto previsto para 45 min levou 20), o aviso mostra
-  "25 min livres · **Adiantar**", com as opções **adiantar só o próximo item** ou **adiantar tudo o que vem
-  depois** naquele dia. Tocar num horário vazio antes de um item também oferece adiantá-lo, e
-  **Terminei agora** (na ficha de algo em andamento) encerra o item e oferece o mesmo.
+- **Adiantar (fechar espaço)**: se você encurta algo (o trajeto previsto para 45 min levou 20), aparece no próprio
+  espaço livre um botão "**↑ Adiantar** · 25 min livres", com as opções **adiantar só o próximo item** ou
+  **adiantar tudo o que vem depois** naquele dia (o × some com ele). Tocar num horário vazio antes de um item
+  também oferece adiantá-lo, e **Terminei agora** (na ficha de algo em andamento) encerra o item e mostra o mesmo botão.
 
 ### Notificações
 - Em qualquer item com horário (evento, visita a local, horário avulso, compromisso), toque no **sino**
@@ -101,9 +102,10 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
 
 ### Conclusão automática e histórico
 - Marcar um local como **visitado** (✓) registra no histórico.
-- Qualquer item com horário na agenda (evento, visita a local, compromisso) cujo horário **passou sem
-  alteração** é marcado como **feito** automaticamente e vai para o histórico. O local de um evento/visita
-  concluído passa a constar como visitado.
+- Eventos, visitas a locais e horários avulsos cujo horário **passou sem alteração** são marcados como
+  **feitos** automaticamente e vão para o histórico. O local de um evento/visita concluído passa a constar
+  como visitado.
+- **Compromissos** (rotina: trabalho, terapia…) aparecem como feitos na agenda, mas **não entram no Histórico**.
 - Se algo não aconteceu, toque nele (na agenda ou no histórico) → **Não aconteceu**.
 
 ## Seus dados

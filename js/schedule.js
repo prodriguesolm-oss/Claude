@@ -414,8 +414,8 @@ export function applyMove(state, occ, start, end, now = Date.now()) {
 }
 
 /**
- * Varredura de conclusão automática: tudo que tinha horário, já terminou e não foi alterado
- * é marcado como feito e vai para o histórico. Locais de eventos/visitas concluídos ficam "visitados".
+ * Varredura de conclusão automática: eventos, visitas e horários avulsos que já terminaram sem
+ * alteração são marcados como feitos e vão para o histórico (compromissos, não). Locais de eventos/visitas concluídos ficam "visitados".
  */
 export function sweep(state, now, lastSweep) {
   const places = placeMap(state);
@@ -448,15 +448,7 @@ export function sweep(state, now, lastSweep) {
     res.items.push(ni);
     res.history.push(historyFor(itemOcc(ni, now), 'auto', it.end));
   }
-  for (const c of state.commitments) {
-    const from = Math.max(lastSweep || 0, c.createdAt || 0);
-    if (from >= now) continue;
-    for (const o of commitmentOccs(c, from, now, now, groups)) {
-      if (o.end <= from || o.end > now || o.status === 'missed' || o.status === 'choose') continue;
-      if (c.createdAt && o.start < c.createdAt) continue; // já tinha começado antes do cadastro
-      res.history.push(historyFor(o, 'auto', o.end));
-    }
-  }
+  // compromissos (rotina) aparecem como feitos na agenda, mas não vão para o Histórico
   res.places = [...touched.values()];
   return res;
 }

@@ -9,7 +9,7 @@ import {
   bindFormWidgets, searchBar, placeThumb, remindCells, readRemind, chipBar, catBadge,
 } from './widgets.js';
 import { pushReady } from './push.js';
-import { resolveConflicts, reportResolution, confirmSeries } from './conflicts.js';
+import { resolveConflicts, confirmSeries } from './conflicts.js';
 import { processPhoto } from './photo.js';
 import { uid, matchScore, byName } from './util.js';
 import {
@@ -27,7 +27,6 @@ const durFrom = (prefill, start, fallback) => (prefill.end && prefill.end > star
 async function afterSave(prefill, key) {
   if (!prefill.optionOf) return false;
   const g = await linkOption(prefill.optionOf, key);
-  if (g) toast(`Plano B criado: “${prefill.optionOf.title}” e esta opção ficam lado a lado`, { icon: 'split', ms: 3200 });
   return !!g;
 }
 
@@ -243,9 +242,7 @@ export function openPlaceForm({ id = null, prefill = {} } = {}) {
       if (res) {
         await saveVisit({ placeId: saved.id, start: res.start, end: res.end });
         await applyMoves(res.moves);
-        reportResolution(res, vStart);
       }
-      if (!res?.policy) toast(prev ? 'Local atualizado' : 'Local salvo', { icon: 'check' });
       return saved;
     },
   });
@@ -291,7 +288,6 @@ export function openPlaceForm({ id = null, prefill = {} } = {}) {
       const ok = await confirmDialog({ title: `Excluir “${prev.name}”?`, message: `Esta ação não pode ser desfeita.${extra}`, ok: 'Excluir', destructive: true });
       if (!ok) return;
       await deletePlace(prev.id);
-      toast('Local excluído', { icon: 'trash' });
       ctl.close();
     }
   });
@@ -357,9 +353,8 @@ export function openEventForm({ id = null, prefill = {}, requireSchedule = false
         } else { data.start = prev.start; data.end = prev.end; }
       }
       const saved = await saveEvent(data);
-      if (res) { await applyMoves(res.moves); reportResolution(res, reqStart); }
+      if (res) await applyMoves(res.moves);
       if (await afterSave(prefill, `event:${saved.id}`)) return saved;
-      if (!res?.policy) toast(prev ? 'Evento atualizado' : 'Evento salvo', { icon: 'check' });
       return saved;
     },
   });
@@ -370,7 +365,6 @@ export function openEventForm({ id = null, prefill = {}, requireSchedule = false
       const ok = await confirmDialog({ title: `Excluir “${prev.name}”?`, message: 'O evento sai da agenda. O que já está no histórico é mantido.', ok: 'Excluir', destructive: true });
       if (!ok) return;
       await deleteEvent(prev.id);
-      toast('Evento excluído', { icon: 'trash' });
       ctl.close();
     }
   });
@@ -413,9 +407,7 @@ export function openVisitForm({ id = null, prefill = {} } = {}) {
       }
       const saved = await saveVisit({ id: prev?.id, placeId: pid, start: res.start, end: res.end, remind: readRemind(f) });
       await applyMoves(res.moves);
-      reportResolution(res, s);
       if (await afterSave(prefill, `visit:${saved.id}`)) return saved;
-      if (!res.policy) toast(prev ? 'Visita atualizada' : 'Visita agendada', { icon: 'check' });
       return saved;
     },
   });
@@ -426,7 +418,6 @@ export function openVisitForm({ id = null, prefill = {} } = {}) {
       const ok = await confirmDialog({ title: 'Excluir esta visita?', message: 'Ela sai da agenda. O local continua cadastrado.', ok: 'Excluir', destructive: true });
       if (!ok) return;
       await deleteVisit(prev.id);
-      toast('Visita excluída', { icon: 'trash' });
       ctl.close();
     }
   });
@@ -529,7 +520,6 @@ export function openCommitmentForm({ id = null, prefill = {} } = {}) {
         const ok = await confirmSeries({ ...prev, ...data, id: prev?.id || 'new', overrides: data.overrides || {} });
         if (!ok) return false;
         const saved = await saveCommitment(data);
-        toast(prev ? 'Compromisso atualizado' : 'Compromisso salvo', { icon: 'check' });
         return saved;
       }
       const s = readStart(f, 'o');
@@ -544,9 +534,7 @@ export function openCommitmentForm({ id = null, prefill = {} } = {}) {
       }
       const saved = await saveCommitment({ ...data, start: res.start, end: res.end, status: null });
       await applyMoves(res.moves);
-      reportResolution(res, s);
       if (await afterSave(prefill, `commitment:${saved.id}:once`)) return saved;
-      if (!res.policy) toast(prev ? 'Compromisso atualizado' : 'Compromisso salvo', { icon: 'check' });
       return saved;
     },
   });
@@ -575,7 +563,6 @@ export function openCommitmentForm({ id = null, prefill = {} } = {}) {
       const ok = await confirmDialog({ title: `Excluir “${prev.name}”?`, message: prev.kind !== 'once' ? 'Todas as ocorrências futuras saem da agenda. O histórico é mantido.' : 'Ele sai da agenda. O histórico é mantido.', ok: 'Excluir', destructive: true });
       if (!ok) return;
       await deleteCommitment(prev.id);
-      toast('Compromisso excluído', { icon: 'trash' });
       ctl.close();
     }
   });
@@ -616,9 +603,7 @@ export function openItemForm({ id = null, prefill = {} } = {}) {
       }
       const saved = await saveItem({ id: prev?.id, title, note: f.elements.note.value.trim(), start: res.start, end: res.end, remind: readRemind(f) });
       await applyMoves(res.moves);
-      reportResolution(res, s);
       if (await afterSave(prefill, `item:${saved.id}`)) return saved;
-      if (!res.policy) toast(prev ? 'Horário atualizado' : 'Adicionado à agenda', { icon: 'check' });
       return saved;
     },
   });
@@ -628,7 +613,6 @@ export function openItemForm({ id = null, prefill = {} } = {}) {
       const ok = await confirmDialog({ title: `Excluir “${prev.title}”?`, message: 'Ele sai da agenda. O histórico é mantido.', ok: 'Excluir', destructive: true });
       if (!ok) return;
       await deleteItem(prev.id);
-      toast('Horário excluído', { icon: 'trash' });
       ctl.close();
     }
   });

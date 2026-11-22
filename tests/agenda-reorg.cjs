@@ -160,7 +160,7 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   await drag(b.x + b.width - 15, b.y + 40, b.x - 140, b.y + 42, { hold: 0 });
   o = await occs(D3);
   assert(!o['Trilha Pedra Bonita [A]'] && o['Biblioteca Nacional'] === '17:00–19:00', 'deslizar para a esquerda tirou a opção A; a biblioteca virou item normal');
-  assert(/Opção A saiu · ficou “Biblioteca Nacional”/.test(await toastText()), 'aviso: "Opção A saiu · ficou Biblioteca Nacional"');
+  assert(!(await toastText()), 'nenhum aviso (pop-up) anunciando a mudança');
   assert(await S((s) => s.visits.filter((v) => v.optGroup && v.start > Date.now()).length) === 0, 'grupo desfeito (nada mais marcado como opção nesse dia)');
 
   // ---------- 5) desfazer / refazer ----------
@@ -169,7 +169,7 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   await page.locator('[data-act=undo]').click(); await wait(500);
   o = await occs(D3);
   assert(o['Trilha Pedra Bonita [A]'] && o['Biblioteca Nacional [B]'], '↶ trouxe a opção A de volta (Plano B inteiro)');
-  assert(/Desfeito/.test(await toastText()), 'aviso "Desfeito"');
+  assert(!(await toastText()), 'desfazer também não mostra aviso');
   assert(!(await page.locator('[data-act=redo]').isDisabled()), 'botão ↷ ativo');
   await page.locator('[data-act=redo]').click(); await wait(500);
   assert(!(await occs(D3))['Trilha Pedra Bonita [A]'], '↷ refez (opção A saiu de novo)');
@@ -244,10 +244,17 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   await block('Trajeto').evaluate((el) => el.scrollIntoView({ block: 'center' })); await wait(250);
   b = await box('Trajeto');
   await drag(b.x + b.width / 2, b.y + b.height - 6, b.x + b.width / 2, b.y + b.height - 6 - 30);
-  let tt = await toastText();
-  console.log('    aviso:', JSON.stringify(tt.replace(/\n/g, ' ')));
-  assert(/Trajeto até 13:15/.test(tt) && /30 min livres/.test(tt) && /Adiantar/.test(tt), 'encurtar o trajeto mostra "30 min livres" com botão Adiantar');
-  await page.locator('.toast-act').click(); await wait(500);
+  assert(!(await toastText()), 'sem aviso (pop-up) depois de encurtar');
+  const gapBtn = page.locator('[data-view=agenda] .tl-gap');
+  let gt = await gapBtn.innerText().catch(() => '');
+  console.log('    no espaço livre:', JSON.stringify(gt.replace(/\n/g, ' ')));
+  assert(/Adiantar/.test(gt) && /30 min livres/.test(gt), 'encurtar o trajeto mostra "Adiantar · 30 min livres" dentro do espaço que ficou livre');
+  const gb = await gapBtn.boundingBox();
+  const tj = await box('Trajeto');
+  const cs = await box('Consulta');
+  assert(gb.y >= tj.y + tj.height - 2 && gb.y < cs.y, 'o botão fica entre o trajeto e a consulta');
+  await shot('08a-botao-adiantar');
+  await page.locator('.tl-gap-go').click(); await wait(500);
   const gapOpts = await page.locator('.as-wrap.open .as-btn').allInnerTexts();
   assert(gapOpts.some((t) => /Adiantar só “Consulta”/.test(t) && /13:15/.test(t)) && gapOpts.some((t) => /Adiantar tudo o que vem depois/.test(t)), 'oferece adiantar só a consulta ou tudo o que vem depois');
   await shot('08-adiantar');
@@ -291,9 +298,9 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
     b = await box('Estudo');
     await page.touchscreen.tap(b.x + b.width / 2, b.y + 20); await wait(700);
     await sheet().locator('[data-act=finish]').click(); await wait(800);
-    tt = await toastText();
-    assert(/Estudo” encerrado às/.test(tt) && /Adiantar/.test(tt), '"Terminei agora" encerra e oferece adiantar');
-    await page.locator('.toast-act').click(); await wait(500);
+    assert(await page.locator('.sheet-wrap.open').count() === 0 && !(await toastText()), '"Terminei agora" fecha a ficha, sem aviso');
+    assert(/Adiantar/.test(await page.locator('[data-view=agenda] .tl-gap').innerText()), 'e o botão "Adiantar" aparece no espaço que sobrou');
+    await page.locator('.tl-gap-go').click(); await wait(500);
     await asBtn('Adiantar só “Almoço”').click(); await wait(700);
     const r = await page.evaluate(async () => { const { state } = await import('./js/store.js'); const e = state.items.find((i) => i.title === 'Estudo'); const a = state.items.find((i) => i.title === 'Almoço'); return { gapMin: (a.start - e.end) / 60e3, estudo: e.status }; });
     assert(r.gapMin === 0 && r.estudo === 'done', `almoço começa quando o estudo terminou; estudo concluído (${JSON.stringify(r)})`);
@@ -302,7 +309,34 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
     console.log('  (pulado: perto da meia-noite)');
   }
 
-  // ---------- 11) ajustes e persistência ----------
+  // ---------- 11) compromissos não entram no Histórico ----------
+  console.log('Compromissos fora do Histórico');
+  await page.evaluate(async (y) => {
+    const s = await import('./js/store.js'); const t = await import('./js/time.js'); const db = await import('./js/db.js');
+    await s.saveCommitment({ name: 'Reunião única', kind: 'once', start: t.atMinutes(y, 600), end: t.atMinutes(y, 660), status: null, slots: [] });
+    // um registro de compromisso que versões anteriores tinham colocado no Histórico
+    const old = Date.now() - 864e5;
+    await db.tx([{ type: 'put', store: 'history', value: { id: 'h:commitment:antigo:x', kind: 'commitment', refId: 'antigo', subKey: 'x', title: 'Terapia antiga', subtitle: '', start: old, end: old + 36e5, at: old, source: 'auto' } }]);
+  }, dk(Y));
+  await page.reload({ waitUntil: 'networkidle' }); await wait(600);
+  const yo = await occs(Y);
+  assert(/10:00–11:00/.test(yo['Reunião única'] || ''), 'o compromisso de ontem continua na agenda');
+  const reuniaoStatus = await page.evaluate(async (k) => {
+    const { state } = await import('./js/store.js'); const sch = await import('./js/schedule.js'); const t = await import('./js/time.js');
+    const ds = t.parseDateKey(k).getTime(); return sch.expand(state, ds, t.addDays(ds, 1)).find((o) => o.title === 'Reunião única')?.status;
+  }, dk(Y));
+  assert(reuniaoStatus === 'done', 'aparece como feito na agenda');
+  assert(await S((s) => s.history.filter((h) => h.kind === 'commitment').length) === 0, 'nenhum compromisso no Histórico (inclusive o registro antigo foi limpo)');
+  await page.click('.tab[data-tab="history"]'); await wait(400);
+  const chips = await page.locator('[data-view=history] [data-chip]').allInnerTexts();
+  assert(!chips.some((c) => /Compromissos/.test(c)), `aba Histórico sem filtro de compromissos (${chips.map((c) => c.replace(/\n/g, ' ')).join(' | ')})`);
+  const statsTxt = await page.locator('[data-view=history] .stats').innerText();
+  assert(!/compromisso/i.test(statsTxt) && /horários avulsos/.test(statsTxt), 'contadores: locais, eventos e horários avulsos');
+  assert(!(await page.locator('[data-view=history]').innerText()).includes('Reunião única'), 'a reunião não aparece no Histórico');
+  await shot('10-historico');
+  await page.click('.tab[data-tab="agenda"]'); await wait(300);
+
+  // ---------- 12) ajustes e persistência ----------
   console.log('Ajustes e persistência');
   await page.click('[data-act=settings]'); await wait(500);
   assert(/Perguntar sempre \(recomendado\)/.test(await sheet().locator('[data-policy=ask]').innerText()) && await sheet().locator('[data-policy=ask] .i.accent').count() === 1, 'Ajustes: "Perguntar sempre (recomendado)" marcado');
