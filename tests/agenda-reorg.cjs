@@ -211,8 +211,9 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   assert((await sheet().locator('input[name=iTime]').inputValue()) === '07:00' && (await sheet().locator('[data-dur=duration] output').innerText()) === '1h', 'formulário já com 07:00 e 1h');
   await sheet().locator('input[name=title]').fill('Dormi mais');
   await save();
-  hist = await S((s) => s.history.filter((h) => h.kind === 'item').map((h) => h.title));
-  assert(hist.includes('Dormi mais') && !hist.includes('Academia'), 'Histórico: "Dormi mais" no lugar da academia');
+  const yItems = await S((s) => s.items.filter((i) => i.title === 'Dormi mais' || i.title === 'Academia').map((i) => `${i.title}:${i.status}`));
+  assert(JSON.stringify(yItems) === JSON.stringify(['Dormi mais:done']), `agenda: "Dormi mais" feito no lugar da academia (${yItems})`);
+  assert(await S((s) => s.history.filter((h) => h.kind === 'item').length) === 0, 'horários avulsos não vão para o Histórico');
 
   // ---------- 8) sobreposição: perguntar, com "só atrasar o início do próximo" ----------
   console.log('Perguntar ao sobrepor');
@@ -331,7 +332,7 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   const chips = await page.locator('[data-view=history] [data-chip]').allInnerTexts();
   assert(!chips.some((c) => /Compromissos/.test(c)), `aba Histórico sem filtro de compromissos (${chips.map((c) => c.replace(/\n/g, ' ')).join(' | ')})`);
   const statsTxt = await page.locator('[data-view=history] .stats').innerText();
-  assert(!/compromisso/i.test(statsTxt) && /horários avulsos/.test(statsTxt), 'contadores: locais, eventos e horários avulsos');
+  assert(!/compromisso|avulso/i.test(statsTxt) && /locais visitados/.test(statsTxt) && /eventos feitos/.test(statsTxt), 'contadores: só locais e eventos (+ dates)');
   assert(!(await page.locator('[data-view=history]').innerText()).includes('Reunião única'), 'a reunião não aparece no Histórico');
   await shot('10-historico');
   await page.click('.tab[data-tab="agenda"]'); await wait(300);

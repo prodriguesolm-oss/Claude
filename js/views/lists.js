@@ -1,14 +1,15 @@
 // Abas de lista: Locais, Eventos, Compromissos, Favoritos e Histórico.
 import { state, deleteHistory, setOccStatus, setPlaceVisited, setPlaceVisitedDate } from '../store.js';
 import { html, ic, actionSheet, toast, confirmDialog, openSheet } from '../ui.js';
-import { emptyState } from '../widgets.js';
+import { emptyState, placeThumb, catBadge } from '../widgets.js';
 import { createListView } from './listview.js';
 import { placeRow, eventRow, commitmentRow, upcomingByPlace } from '../rows.js';
 import { openPlaceForm, openEventForm, openCommitmentForm, openItemForm, openVisitForm } from '../forms.js';
 import { openPlaceDetail, openOccurrenceSheet } from '../sheets.js';
-import { occByKey, KIND_LABEL, colorOf } from '../schedule.js';
+import { occByKey, KIND_LABEL, inHistory } from '../schedule.js';
 import { KIND_ICON } from '../icons.js';
 import { matchScore, byName, collator } from '../util.js';
+import { PLACE_FACETS, PLACE_SORTS, placeComparator, CAT_OPTIONS, catSection, catRank } from '../facets.js';
 import { dayLabel, fmtDateShort, fmtHM, fmtRange, startOfDay, dateKey, atMinutes } from '../time.js';
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -25,40 +26,33 @@ function filterAndRank(items, q, fieldsOf, fallbackSort) {
 const placeName = (id) => state.places.find((p) => p.id === id)?.name || '';
 
 // ---------- Locais ----------
+// Filtros em 3 linhas (visitados × não visitados · ★ e ♥ · categoria), que se somam; tocar de novo tira.
+
+const CAT_TITLE = Object.fromEntries([...CAT_OPTIONS, [null, 'Sem classificação']]);
 
 export const createPlacesView = () => createListView({
   id: 'places',
   title: 'Locais',
   placeholder: 'Buscar locais pelo nome',
-  initialFilter: 'all',
   addLabel: 'Adicionar local',
   onAdd: () => openPlaceForm(),
-  subtitle: () => plural(state.places.length, 'local', 'locais'),
-  filters: () => {
-    const P = state.places;
-    const n = (f) => P.filter(f).length;
-    return [
-      ['all', 'Todos', P.length],
-      ['fav', 'Favoritos', n((p) => p.favorite)],
-      ['visited', 'Visitados', n((p) => p.visited)],
-      ['todo', 'Não visitados', n((p) => !p.visited)],
-      ['cultura', 'Cultura', n((p) => p.category === 'cultura')],
-      ['aventura', 'Aventura', n((p) => p.category === 'aventura')],
-      ['bares', 'Bares e restaurantes', n((p) => p.category === 'bares')],
-      ['outros', 'Outros', n((p) => p.category === 'outros')],
-    ];
-  },
-  renderList: ({ q, filter }) => {
+  facets: PLACE_FACETS,
+  facetItems: () => state.places,
+  sorts: PLACE_SORTS,
+  subtitle: (c) => (c && c.filtered && c.shown != null ? `${c.shown} de ${state.places.length}` : plural(state.places.length, 'local', 'locais')),
+  renderList: (c) => {
     if (!state.places.length) {
       return emptyState({ icon: 'pin', title: 'Nenhum local ainda', text: 'Cadastre lugares que você quer conhecer — com nome, endereço e foto para referência.', actionLabel: 'Adicionar local' });
     }
-    const pass = {
-      all: () => true, fav: (p) => p.favorite, visited: (p) => p.visited, todo: (p) => !p.visited,
-      cultura: (p) => p.category === 'cultura', aventura: (p) => p.category === 'aventura', bares: (p) => p.category === 'bares', outros: (p) => p.category === 'outros',
-    }[filter] || (() => true);
-    const list = filterAndRank(state.places.filter(pass), q, (p) => [p.name, p.address], byName);
-    if (!list.length) return noResults(q);
+    const list = filterAndRank(state.places.filter(c.pass), c.q, (p) => [p.name, p.address], placeComparator(c.sort));
+    c.shown = list.length;
+    if (!list.length) return noResults(c.q);
     const up = upcomingByPlace();
+    if (c.sort === 'cat' && !c.q) {
+      const groups = new Map();
+      for (const p of list) { const k = p.category || null; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); }
+      return html`${[...groups.entries()].map(([k, ps]) => section(CAT_TITLE[k] || 'Sem classificação', ps.map((p) => placeRow(p, up.get(p.id))), ps.length))}`;
+    }
     return html`<div class="group">${list.map((p) => placeRow(p, up.get(p.id)))}</div>`;
   },
 });
@@ -206,20 +200,48 @@ export const createFavoritesView = () => createListView({
 });
 
 // ---------- Histórico ----------
+// Só locais (visitados / visitas) e eventos, com a foto do local. Filtros em 3 linhas (tipo · ★ e ♥ · categoria)
+// e ordenação (mais recentes, mais antigos, A–Z, por categoria).
 
-const HIST_GROUP = { place: 'place', visit: 'place', event: 'event', item: 'item' };
-// compromissos (rotina) não entram no Histórico
-const histList = () => state.history.filter((h) => h.kind !== 'commitment');
+const isPlaceKind = (k) => k === 'place' || k === 'visit';
 
-function histRow(h, now) {
+/** registro do Histórico + o local / evento de agora (foto, ★, ♥ e categoria vêm deles) */
+function histEntries() {
+  const places = new Map(state.places.map((p) => [p.id, p]));
+  const events = new Map(state.events.map((e) => [e.id, e]));
+  return state.history.filter((h) => inHistory(h.kind)).map((h) => {
+    const ev = h.kind === 'event' ? events.get(h.refId) || null : null;
+    const place = places.get(h.placeId || (h.kind === 'place' ? h.refId : null)) || (ev ? places.get(ev.placeId) : null) || null;
+    const flags = ev || place || {};
+    return { h, ev, place, cat: (ev?.category || place?.category || h.category || null), fav: !!flags.favorite, date: !!flags.isDate };
+  });
+}
+
+const HIST_FACETS = [
+  { id: 'kind', mode: 'one', options: [['place', 'Locais', (x) => isPlaceKind(x.h.kind)], ['event', 'Eventos', (x) => x.h.kind === 'event']] },
+  { id: 'mark', mode: 'all', options: [['fav', '★ Favoritos', (x) => x.fav], ['date', '♥ Date', (x) => x.date]] },
+  catSection((x) => x.cat),
+];
+
+const HIST_SORTS = [
+  ['recent', 'Mais recentes', 'Recentes'],
+  ['old', 'Mais antigos', 'Antigos'],
+  ['name', 'Nome (A–Z)', 'A–Z'],
+  ['cat', 'Por categoria', 'Categoria'],
+];
+
+function histRow(x, now) {
+  const { h, place, ev } = x;
   const imported = h.source === 'import';
-  const when = imported ? (h.start != null ? `${fmtDateShort(h.start, now)}` : 'feito') : h.dateOnly ? 'visitado' : h.start != null ? fmtRange(h.start, h.end) : `marcado às ${fmtHM(h.at)}`;
-  const kindTxt = h.kind === 'place' ? 'Local visitado' : h.kind === 'visit' ? 'Visita a local' : h.kind === 'item' ? 'Horário avulso' : KIND_LABEL[h.kind];
+  const when = imported ? (h.start != null ? `${fmtDateShort(h.start, now)}` : 'feito') : h.dateOnly ? fmtDateShort(h.at, now) : h.start != null ? fmtRange(h.start, h.end) : `marcado às ${fmtHM(h.at)}`;
+  const kindTxt = h.kind === 'place' ? 'Local visitado' : h.kind === 'visit' ? 'Visita a local' : KIND_LABEL[h.kind];
+  const where = h.kind === 'event' ? place?.name || h.subtitle : '';
   return html`<button type="button" class="row hrow" data-hid="${h.id}">
-    <span class="kicon c-${colorOf(h)}">${ic(KIND_ICON[h.kind], 'i sm')}</span>
+    ${place ? placeThumb(place, 'thumb sm') : html`<span class="thumb sm ph empty-ph">${ic(KIND_ICON[h.kind] || 'pin', 'i sm')}</span>`}
     <div class="row-main">
-      <div class="row-title">${h.title}</div>
-      <div class="row-sub">${kindTxt}${h.kind === 'event' && h.subtitle ? ` · ${h.subtitle}` : ''}</div>
+      <div class="row-title">${ev?.name || (h.kind !== 'event' && place?.name) || h.title}</div>
+      <div class="row-sub">${kindTxt}${where ? ` · ${where}` : ''}</div>
+      ${x.cat || x.fav || x.date ? html`<div class="row-meta">${catBadge(x.cat)}${x.fav ? html`<span class="badge star-b">${ic('star', 'i xs', true)}</span>` : ''}${x.date ? html`<span class="badge heart-b">${ic('heart', 'i xs', true)}</span>` : ''}</div>` : ''}
     </div>
     <div class="row-right"><b>${when}</b><span>${imported ? 'importado' : h.source === 'manual' ? 'manual' : 'automático'}</span></div>
   </button>`;
@@ -229,49 +251,59 @@ export const createHistoryView = () => createListView({
   id: 'history',
   title: 'Histórico',
   placeholder: 'Buscar no histórico',
-  initialFilter: 'all',
-  subtitle: () => plural(histList().length, 'registro', 'registros'),
+  facets: HIST_FACETS,
+  facetItems: histEntries,
+  sorts: HIST_SORTS,
+  subtitle: (c) => {
+    const total = state.history.filter((h) => inHistory(h.kind)).length;
+    return c && c.filtered && c.shown != null ? `${c.shown} de ${total}` : plural(total, 'registro', 'registros');
+  },
   headerExtra: () => {
-    const H = histList();
+    const E = histEntries();
     const visited = state.places.filter((p) => p.visited).length;
-    const ev = H.filter((h) => h.kind === 'event').length;
-    const it = H.filter((h) => h.kind === 'item').length;
+    const ev = E.filter((x) => x.h.kind === 'event').length;
+    const dates = E.filter((x) => x.date).length;
     return html`<div class="stats">
       <div class="stat k-visit"><b>${visited}</b><span>locais visitados</span></div>
       <div class="stat k-event"><b>${ev}</b><span>eventos feitos</span></div>
-      <div class="stat c-item"><b>${it}</b><span>horários avulsos</span></div>
+      <div class="stat heart-stat"><b>${dates}</b><span>♥ dates</span></div>
     </div>`;
   },
-  filters: () => {
-    const H = histList();
-    return [
-      ['all', 'Tudo', H.length],
-      ['place', 'Locais', H.filter((h) => HIST_GROUP[h.kind] === 'place').length],
-      ['event', 'Eventos', H.filter((h) => h.kind === 'event').length],
-      ['item', 'Avulsos', H.filter((h) => h.kind === 'item').length],
-    ];
-  },
-  renderList: ({ q, filter }) => {
-    if (!histList().length) {
-      return html`<div class="empty"><div class="empty-ic">${ic('history', 'i xl')}</div><div class="empty-title">Histórico vazio</div><div class="empty-text">Aqui aparece tudo que você já fez: locais visitados, eventos e horários avulsos cujo horário passou sem alteração (marcados como feitos automaticamente). Compromissos da rotina não entram aqui.</div></div>`;
+  renderList: (c) => {
+    const all = histEntries();
+    if (!all.length) {
+      return html`<div class="empty"><div class="empty-ic">${ic('history', 'i xl')}</div><div class="empty-title">Histórico vazio</div><div class="empty-text">Aqui aparecem os locais que você visitou e os eventos que fez — marcados por você ou automaticamente quando o horário passa. Compromissos e horários avulsos não entram aqui.</div></div>`;
     }
     const now = Date.now();
-    const list = histList()
-      .filter((h) => filter === 'all' || HIST_GROUP[h.kind] === filter)
-      .filter((h) => matchScore(q, h.title, h.subtitle) > 0)
-      .sort((a, b) => b.at - a.at);
-    if (!list.length) return noResults(q);
+    const titleOf = (x) => x.ev?.name || (x.h.kind !== 'event' && x.place?.name) || x.h.title;
+    const byTitle = (a, b) => collator.compare(titleOf(a), titleOf(b));
+    const newest = (a, b) => b.h.at - a.h.at || byTitle(a, b);
+    const cmp = c.sort === 'old' ? (a, b) => a.h.at - b.h.at || byTitle(a, b) : c.sort === 'name' ? byTitle
+      : c.sort === 'cat' ? (a, b) => catRank(a.cat) - catRank(b.cat) || newest(a, b) : newest;
+    let list = all.filter(c.pass).map((x) => ({ x, sc: matchScore(c.q, titleOf(x), x.h.subtitle, x.place?.name) })).filter((y) => y.sc > 0);
+    list = (c.q ? list.sort((a, b) => b.sc - a.sc || cmp(a.x, b.x)) : list.sort((a, b) => cmp(a.x, b.x))).map((y) => y.x);
+    c.shown = list.length;
+    if (!list.length) return noResults(c.q);
+    const rows = (xs) => xs.map((x) => histRow(x, now));
+    if (c.q || c.sort === 'name') return html`<div class="group">${rows(list)}</div>`;
+    if (c.sort === 'cat') {
+      const groups = new Map();
+      for (const x of list) { if (!groups.has(x.cat)) groups.set(x.cat, []); groups.get(x.cat).push(x); }
+      return html`${[...groups.entries()].map(([k, xs]) => section(CAT_TITLE[k] || 'Sem classificação', rows(xs), xs.length))}`;
+    }
+    // por data: um bloco por dia; os importados (sem data) ficam juntos — no fim (recentes) ou no começo (antigos)
     const groups = new Map();
     const imported = [];
-    for (const h of list) {
-      if (h.source === 'import') { imported.push(h); continue; }
-      const k = startOfDay(h.at);
+    for (const x of list) {
+      if (x.h.source === 'import') { imported.push(x); continue; }
+      const k = startOfDay(x.h.at);
       if (!groups.has(k)) groups.set(k, []);
-      groups.get(k).push(h);
+      groups.get(k).push(x);
     }
-    imported.sort((a, b) => collator.compare(a.title, b.title));
-    return html`${[...groups.entries()].map(([d, hs]) => section(dayLabel(d, now), hs.map((h) => histRow(h, now)), fmtDateShort(d, now)))}
-      ${imported.length ? section('Feitos antes do Agentonator', imported.map((h) => histRow(h, now)), `${imported.length} · sem data`) : ''}`;
+    imported.sort(byTitle);
+    const imp = imported.length ? section('Feitos antes do Agentonator', rows(imported), `${imported.length} · sem data`) : '';
+    const days = [...groups.entries()].map(([d, xs]) => section(dayLabel(d, now), rows(xs), fmtDateShort(d, now)));
+    return c.sort === 'old' ? html`${imp}${days}` : html`${days}${imp}`;
   },
   onClick: (t) => {
     const row = t.closest?.('[data-hid]');

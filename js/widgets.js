@@ -16,6 +16,55 @@ export function chipBar(options, active) {
   return html`<div class="chips" role="tablist">${options.map(([v, label, n]) => html`<button type="button" class="chip ${v === active ? 'on' : ''}" data-chip="${v}" role="tab">${label}${n != null ? html`<small>${n}</small>` : ''}</button>`)}</div>`;
 }
 
+// ---------- filtros em seções (cada seção é uma linha de chips) ----------
+// sections: [{ id, mode: 'one' | 'all', options: [[valor, rótulo, pass(item)]] }]
+//  - 'one': no máximo um por seção (tocar de novo tira)
+//  - 'all': vários ao mesmo tempo — o item precisa ter todos (ex.: ★ Favorito E ♥ Date)
+// Entre as seções também vale "E". sel = { [idDaSeção]: [valores] }
+
+const optPass = (s, v) => s.options.find((o) => o[0] === v)?.[2] || (() => true);
+
+/** função que diz se um item passa por todos os filtros escolhidos */
+export function facetPass(sections, sel) {
+  const active = sections.map((s) => [s, sel[s.id] || []]).filter(([, vals]) => vals.length);
+  return (it) => active.every(([s, vals]) => vals.every((v) => optPass(s, v)(it)));
+}
+
+export const facetActive = (sel) => Object.values(sel || {}).some((v) => v && v.length);
+
+/** liga/desliga um filtro, respeitando o modo da seção */
+export function toggleFacet(sections, sel, id, v) {
+  const s = sections.find((x) => x.id === id);
+  if (!s) return sel;
+  const cur = sel[id] || [];
+  const next = cur.includes(v) ? cur.filter((x) => x !== v) : s.mode === 'one' ? [v] : [...cur, v];
+  return { ...sel, [id]: next };
+}
+
+/**
+ * As linhas de chips. A contagem de cada chip já considera os filtros das outras seções
+ * (mostra quantos sobrariam ao tocar nele).
+ */
+export function facetBar(sections, sel, items) {
+  const any = facetActive(sel);
+  return html`<div class="facets">${sections.map((s, i) => {
+    const others = facetPass(sections.filter((x) => x !== s), sel);
+    const own = s.mode === 'all' ? sel[s.id] || [] : [];
+    const base = items.filter((it) => others(it) && own.every((v) => optPass(s, v)(it)));
+    return html`<div class="chips facet-row" data-row="${s.id}">${s.options.map(([v, label, pass]) => {
+      const on = (sel[s.id] || []).includes(v);
+      const n = base.filter(pass).length;
+      return html`<button type="button" class="chip ${on ? 'on' : ''} ${!on && !n ? 'zero' : ''}" data-chip="${v}" data-facet="${s.id}" aria-pressed="${on ? 'true' : 'false'}">${label}<small>${n}</small></button>`;
+    })}${i === 0 && any ? html`<button type="button" class="chip clear" data-act="clear-facets">${ic('x', 'i xs')} Limpar</button>` : ''}</div>`;
+  })}</div>`;
+}
+
+/** botão "ordenar" (mostra a ordem atual numa palavra). sorts: [[valor, rótulo, curto]] */
+export function sortButton(sorts, current) {
+  const cur = sorts.find((x) => x[0] === current) || sorts[0];
+  return html`<button type="button" class="sort-btn" data-act="sort" aria-label="Ordenar: ${cur[1]}">${ic('sort', 'i xs')}<span>${cur[2] || cur[1]}</span></button>`;
+}
+
 export function setActiveChip(root, v) {
   root.querySelectorAll('[data-chip]').forEach((b) => b.classList.toggle('on', b.dataset.chip === v));
 }

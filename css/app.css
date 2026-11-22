@@ -612,3 +612,15 @@ b { font-weight: 600; }
 .tl-gap-go:active, .tl-gap-x:active { background: rgba(142, 140, 255, .2); }
 .tl-gap-x { width: 28px; height: 28px; border-radius: 14px; display: grid; place-items: center; color: var(--text3); }
 @keyframes gapIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* ---------- filtros em seções (linhas de chips que se somam) + ordenar ---------- */
+.facets { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
+.facets .chips { margin-top: 0; }
+.facets .chip { height: 30px; padding: 0 12px; font-size: 14px; }
+.chip.zero { opacity: .45; }
+.chip.clear { margin-left: auto; background: transparent; color: var(--accent); padding: 0 6px 0 10px; gap: 4px; }
+.vh-right { display: flex; align-items: center; gap: 8px; }
+.sort-btn { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px 0 9px; border-radius: 15px; background: var(--fill2); color: var(--accent); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.sort-btn:active { background: rgba(142, 140, 255, .2); }
+.pick-tools { display: flex; justify-content: flex-end; margin-top: 8px; }
+.heart-stat { --kc: #ff4f7b; --kbg: rgba(255, 79, 123, .16); }

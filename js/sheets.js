@@ -14,7 +14,7 @@ import { placeThumb, catBadge, switchCell } from './widgets.js';
 import { openPlaceForm, openEventForm, openVisitForm, openCommitmentForm, openRescheduleForm, openItemForm } from './forms.js';
 import { moveWithConflicts } from './conflicts.js';
 import { occRow, slotsSummary, STATUS_LABEL } from './rows.js';
-import { expand, occByKey, findConflicts, optMembers, colorOf, KIND_LABEL, FREQ_LABEL, SCOPE_LABEL } from './schedule.js';
+import { expand, occByKey, findConflicts, optMembers, colorOf, KIND_LABEL, FREQ_LABEL, SCOPE_LABEL, inHistory } from './schedule.js';
 import { addInSlot, offerPlanB, keepOnly, swipeRemove, finishNow, pullActions, applyPull, KIND_ACTIONS } from './reorg.js';
 import { KIND_ICON } from './icons.js';
 import { haptic } from './util.js';
@@ -117,7 +117,7 @@ export function openOccurrenceSheet(key) {
     const isOpt = !!occ.opt && occ.opt.of > 1;
     const otherOpts = isOpt ? optMembers(state, occ.opt.g, now).filter((o) => o.key !== occ.key) : [];
     if (occ.status === 'planned' || occ.status === 'ongoing') statusCells.push(['done', 'checkCircle', isOpt ? 'Fiz esta opção (marcar como feito)' : 'Marcar como feito', '']);
-    if (occ.status === 'done') statusCells.push(past ? ['missed', 'ban', occ.kind === 'commitment' ? 'Não aconteceu' : 'Não aconteceu (tirar do histórico)', ''] : ['planned', 'undo', 'Desfazer conclusão', '']);
+    if (occ.status === 'done') statusCells.push(past ? ['missed', 'ban', inHistory(occ.kind) ? 'Não aconteceu (tirar do histórico)' : 'Não aconteceu', ''] : ['planned', 'undo', 'Desfazer conclusão', '']);
     if (occ.status === 'missed') statusCells.push(['done', 'checkCircle', 'Marcar como feito', '']);
 
     setHTML(ctl.body, html`
@@ -162,7 +162,7 @@ export function openOccurrenceSheet(key) {
       <div class="form-group">
         ${occ.status === 'ongoing' ? html`<button type="button" class="cell" data-act="finish"><span class="cell-ic">${ic('stop', 'i sm')}</span><span class="grow"><span class="cell-title">Terminei agora</span><span class="cell-hint">Encerra às ${fmtHM(Math.floor(now / (5 * MIN)) * 5 * MIN)} e oferece adiantar o que vem depois</span></span></button>` : ''}
         ${occ.status !== 'done' && occ.status !== 'missed' ? html`<button type="button" class="cell" data-act="planb"><span class="cell-ic">${ic('split', 'i sm')}</span><span class="grow"><span class="cell-title">${occ.opt ? 'Adicionar outra opção' : 'Criar um Plano B'}</span><span class="cell-hint">Outra opção para o mesmo horário (ex.: se chover). Atalho: toque 3 vezes no bloco</span></span></button>` : ''}
-        ${occ.status === 'done' ? html`<button type="button" class="cell" data-act="replace"><span class="cell-ic">${ic('swap', 'i sm')}</span><span class="grow"><span class="cell-title">Não foi isso que eu fiz…</span><span class="cell-hint">${occ.kind === 'commitment' ? 'Tira da agenda' : 'Tira da agenda e do Histórico'} e registra o que você fez no lugar. Atalho: deslize o bloco para a esquerda</span></span></button>` : ''}
+        ${occ.status === 'done' ? html`<button type="button" class="cell" data-act="replace"><span class="cell-ic">${ic('swap', 'i sm')}</span><span class="grow"><span class="cell-title">Não foi isso que eu fiz…</span><span class="cell-hint">${inHistory(occ.kind) ? 'Tira da agenda e do Histórico' : 'Tira da agenda'} e registra o que você fez no lugar. Atalho: deslize o bloco para a esquerda</span></span></button>` : ''}
       </div>
       <div class="form-group">
         ${occ.overridden ? html`<button type="button" class="cell" data-act="restore"><span class="cell-ic">${ic('undo', 'i sm')}</span><span class="grow">Voltar ao horário de sempre</span></button>` : ''}

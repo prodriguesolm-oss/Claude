@@ -363,6 +363,10 @@ export function planPushNew(occs, cand) {
   return { start: s, end: s + dur };
 }
 
+/** o que vai para o Histórico: só locais (visitados / visitas) e eventos. Compromissos e horários avulsos, não. */
+export const HISTORY_KINDS = new Set(['place', 'visit', 'event']);
+export const inHistory = (kind) => HISTORY_KINDS.has(kind);
+
 export function historyId(occ) {
   return occ.kind === 'commitment' ? `h:commitment:${occ.refId}:${occ.subKey}` : `h:${occ.kind}:${occ.refId}`;
 }
@@ -415,7 +419,7 @@ export function applyMove(state, occ, start, end, now = Date.now()) {
 
 /**
  * Varredura de conclusão automática: eventos, visitas e horários avulsos que já terminaram sem
- * alteração são marcados como feitos e vão para o histórico (compromissos, não). Locais de eventos/visitas concluídos ficam "visitados".
+ * alteração são marcados como feitos; eventos e visitas vão também para o histórico. Locais de eventos/visitas concluídos ficam "visitados".
  */
 export function sweep(state, now, lastSweep) {
   const places = placeMap(state);
@@ -444,11 +448,9 @@ export function sweep(state, now, lastSweep) {
   }
   for (const it of state.items || []) {
     if ((it.status || 'planned') !== 'planned' || it.start == null || it.end == null || it.end > now || undecided(it)) continue;
-    const ni = { ...it, status: 'done', doneAt: it.end, updatedAt: now };
-    res.items.push(ni);
-    res.history.push(historyFor(itemOcc(ni, now), 'auto', it.end));
+    res.items.push({ ...it, status: 'done', doneAt: it.end, updatedAt: now }); // feito na agenda, sem Histórico
   }
-  // compromissos (rotina) aparecem como feitos na agenda, mas não vão para o Histórico
+  // compromissos e horários avulsos aparecem como feitos na agenda, mas não vão para o Histórico
   res.places = [...touched.values()];
   return res;
 }

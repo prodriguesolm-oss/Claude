@@ -217,7 +217,7 @@ test('horário avulso entra na agenda, pode ser movido e é concluído automatic
   assert.equal(moved.store, 'items');
   const r = sweep(s, T(MON, '20:00'), T(MON, '08:00'));
   assert.deepEqual(r.items.map((i) => i.status), ['done']);
-  assert.equal(r.history[0].id, 'h:item:i1');
+  assert.deepEqual(r.history, []); // feito na agenda, mas horários avulsos não vão para o Histórico
   assert.equal(itemOcc(s.items[0], 0).title, 'Shopping Leblon — comprar roupa');
 });
 

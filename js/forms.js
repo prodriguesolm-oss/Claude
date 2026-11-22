@@ -7,7 +7,9 @@ import { openSheet, html, ic, raw, toast, shake, confirmDialog, alertDialog, set
 import {
   segHTML, switchCell, textCell, dateTimeCells, durationCell, readStart, placePickerCell,
   bindFormWidgets, searchBar, placeThumb, remindCells, readRemind, chipBar, catBadge,
+  facetBar, facetPass, toggleFacet, sortButton,
 } from './widgets.js';
+import { PLACE_FACETS, PLACE_SORTS, placeComparator, sortOf, chooseSort } from './facets.js';
 import { pushReady } from './push.js';
 import { resolveConflicts, confirmSeries } from './conflicts.js';
 import { processPhoto } from './photo.js';
@@ -49,29 +51,34 @@ function deleteButton(label) {
 function openFilterPicker(cfg) {
   let q = '';
   let filter = cfg.initial || 'all';
+  let sel = {};
   const ctl = openSheet({
     title: cfg.title,
     className: 'picker-sheet',
-    body: html`<div class="sticky-search">${searchBar(cfg.placeholder)}<div data-ref="chips"></div></div>
+    body: html`<div class="sticky-search">${searchBar(cfg.placeholder)}<div data-ref="chips"></div>${cfg.sorts ? html`<div class="pick-tools" data-ref="ptools"></div>` : ''}</div>
       ${cfg.newLabel ? html`<div class="form-group"><button type="button" class="cell" data-act="new"><span class="cell-ic accent">${ic('plus', 'i sm')}</span><span class="accent grow">${cfg.newLabel}</span></button></div>` : ''}
       <div class="group" data-ref="plist"></div>`,
   });
   const chipsEl = ctl.body.querySelector('[data-ref="chips"]');
   const listEl = ctl.body.querySelector('[data-ref="plist"]');
+  const toolsEl = ctl.body.querySelector('[data-ref="ptools"]');
   const passOf = (v) => (cfg.filters.find((f) => f[0] === v) || cfg.filters[0])[2];
   const renderChips = () => {
-    const sl = chipsEl.querySelector('.chips')?.scrollLeft || 0;
-    setHTML(chipsEl, chipBar(cfg.filters.map(([v, label, pass]) => [v, label, cfg.items.filter(pass).length]), filter));
-    if (sl) chipsEl.querySelector('.chips').scrollLeft = sl;
+    const rows = [...chipsEl.querySelectorAll('.chips')].map((c) => c.scrollLeft);
+    setHTML(chipsEl, cfg.facets ? facetBar(cfg.facets, sel, cfg.items)
+      : chipBar(cfg.filters.map(([v, label, pass]) => [v, label, cfg.items.filter(pass).length]), filter));
+    chipsEl.querySelectorAll('.chips').forEach((c, i) => { if (rows[i]) c.scrollLeft = rows[i]; });
   };
   const render = () => {
+    if (toolsEl) setHTML(toolsEl, sortButton(cfg.sorts, sortOf(cfg.sortKey, cfg.sorts)));
     if (!cfg.items.length) { setHTML(listEl, html`<div class="note">${cfg.emptyText || 'Nada cadastrado ainda.'}</div>`); return; }
-    const pass = passOf(filter);
+    const pass = cfg.facets ? facetPass(cfg.facets, sel) : passOf(filter);
+    const sort = cfg.sorts ? cfg.sortBy(sortOf(cfg.sortKey, cfg.sorts)) : cfg.sort;
     const list = cfg.items
       .filter(pass)
       .map((it) => ({ it, sc: matchScore(q, ...cfg.fields(it)) }))
       .filter((x) => x.sc > 0)
-      .sort((a, b) => (q ? b.sc - a.sc : 0) || cfg.sort(a.it, b.it))
+      .sort((a, b) => (q ? b.sc - a.sc : 0) || sort(a.it, b.it))
       .map((x) => x.it);
     setHTML(listEl, list.length ? html`${list.map((it) => cfg.row(it))}` : html`<div class="note">Nada encontrado${q ? html` para “${q}”` : ' com este filtro'}.</div>`);
   };
@@ -81,8 +88,12 @@ function openFilterPicker(cfg) {
     if (e.target.name === 'q') { q = e.target.value; e.target.closest('.search').classList.toggle('has', !!q); render(); }
   });
   ctl.body.addEventListener('click', async (e) => {
+    const fchip = e.target.closest('[data-facet]');
+    if (fchip && cfg.facets) { sel = toggleFacet(cfg.facets, sel, fchip.dataset.facet, fchip.dataset.chip); renderChips(); render(); return; }
     const chip = e.target.closest('[data-chip]');
     if (chip) { filter = chip.dataset.chip; renderChips(); render(); return; }
+    if (e.target.closest('[data-act="clear-facets"]')) { sel = {}; renderChips(); render(); return; }
+    if (e.target.closest('[data-act="sort"]') && cfg.sorts) { if (await chooseSort(cfg.sortKey, cfg.sorts)) render(); return; }
     const pick = e.target.closest('[data-pick]');
     if (pick) { ctl.close(pick.dataset.pick); return; }
     const act = e.target.closest('[data-act]')?.dataset.act;
@@ -107,17 +118,12 @@ export function openPlacePicker(selectedId, { title = 'Escolher local' } = {}) {
     title,
     placeholder: 'Buscar locais',
     items: state.places,
-    initial: 'all',
-    filters: [
-      ['all', 'Todos', () => true],
-      ['todo', 'Não visitados', (p) => !p.visited],
-      ['fav', 'Favoritos', (p) => p.favorite],
-      ['date', '♥ Date', (p) => p.isDate],
-      ...CAT_FILTERS,
-      ['visited', 'Visitados', (p) => p.visited],
-    ],
+    // mesmos filtros da aba Locais: visitados × não visitados · ★ e ♥ (juntos = os dois) · categoria
+    facets: PLACE_FACETS,
+    sorts: PLACE_SORTS,
+    sortKey: 'places',
+    sortBy: placeComparator,
     fields: (p) => [p.name, p.address],
-    sort: byName,
     emptyText: 'Nenhum local cadastrado ainda. Cadastre o primeiro acima — ele já fica selecionado.',
     newLabel: 'Cadastrar novo local',
     onNew: async (q) => (await openPlaceForm({ prefill: { name: q } }))?.id,

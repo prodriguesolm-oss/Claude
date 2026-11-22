@@ -1,7 +1,7 @@
 // Reorganizar a agenda: Plano B (opções para o mesmo horário), tirar da agenda deslizando,
 // "o que você fez nesse horário?", fechar espaços (adiantar o que vem depois) e "terminei antes".
 import { state, removeFromAgenda, applyMoves, keepOnlyOption } from './store.js';
-import { expand, gapAfter, planPull, SCOPE_LABEL } from './schedule.js';
+import { expand, gapAfter, planPull, SCOPE_LABEL, inHistory } from './schedule.js';
 import { actionSheet, toast, esc } from './ui.js'; // toast só para dicas de uso, nunca para anunciar mudanças (há ↶ ↷)
 import { openVisitForm, openEventForm, openItemForm, openCommitmentForm, openPlacePicker, openEventPicker } from './forms.js';
 import { MIN, fmtHM, fmtRange, fmtDur, dayLabel, startOfDay, addDays } from './time.js';
@@ -85,10 +85,10 @@ export async function swipeRemove(occ) {
   const { remaining } = await removeFromAgenda(occ);
   if (wasDone && !isOption) {
     const scope = occ.recurring ? ` (só ${SCOPE_LABEL[occ.freq] || 'desta vez'})` : '';
-    const from = occ.kind === 'commitment' ? 'da agenda' : 'da agenda e do Histórico';
+    const from = inHistory(occ.kind) ? 'da agenda e do Histórico' : 'da agenda';
     const v = await actionSheet({
       title: 'O que você fez nesse horário?',
-      message: `“${occ.title}” saiu ${from}${scope}. Registre o que fez de ${fmtRange(occ.start, occ.end)} (${dayLabel(occ.start)}) para o Histórico ficar certinho.`,
+      message: `“${occ.title}” saiu ${from}${scope}. Registre o que você fez de ${fmtRange(occ.start, occ.end)} (${dayLabel(occ.start)}).`,
       actions: KIND_ACTIONS,
       cancel: 'Nada — deixar vazio',
     });

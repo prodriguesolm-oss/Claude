@@ -40,11 +40,11 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
 | Aba | Para quê |
 |---|---|
 | **Agenda** | A principal. Junta horários avulsos, eventos, visitas a locais e compromissos numa linha do tempo do dia (ou lista das próximas 3 semanas). |
-| **Locais** | Cadastro de lugares com nome, endereço, foto e classificação (Cultura, Aventura, Bares e restaurantes, Outros). Busca por nome, filtros, ★ favorito, ♥ Date e ✓ visitado direto na lista; data da visita editável. |
+| **Locais** | Cadastro de lugares com nome, endereço, foto e classificação (Cultura, Aventura, Bares e restaurantes, Outros). Busca por nome, filtros que se somam, ordenação, ★ favorito, ♥ Date e ✓ visitado direto na lista; data da visita editável. |
 | **Eventos** | Eventos sempre ligados a um local cadastrado, com data/hora opcional, classificação, ★ favorito e ♥ Date. Eventos já feitos podem ter a data corrigida sem deixar de estar feitos. |
 | **Compromissos** | Lista da sua rotina, agrupada por frequência: **diário**, **semanal**, **mensal** ou **único**. |
 | **Favoritos** | Locais e eventos marcados com ★, com filtro por tipo, e o filtro **♥ Date** com todos os locais e eventos marcados como Date. |
-| **Histórico** | Tudo que já foi feito, com data e horário: locais visitados, eventos e horários avulsos (compromissos da rotina não entram). |
+| **Histórico** | Locais visitados e eventos feitos, com data, horário e a foto do local; filtros (tipo, ★, ♥, categoria) e ordenação. Compromissos e horários avulsos não entram. |
 
 ### Agenda
 - **Cores pela classificação**: Aventura em verde, Cultura em amarelo, Bares e restaurantes em vermelho,
@@ -91,6 +91,18 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
   **adiantar tudo o que vem depois** naquele dia (o × some com ele). Tocar num horário vazio antes de um item
   também oferece adiantá-lo, e **Terminei agora** (na ficha de algo em andamento) encerra o item e mostra o mesmo botão.
 
+### Filtros e ordenação (Locais, escolha de local e Histórico)
+- Os filtros ficam em **linhas que se somam** (vale "E" entre elas); tocar de novo num filtro tira só ele, e
+  **Limpar** tira todos:
+  - **Locais** (e a escolha de local ao agendar): 1) *Não visitados* × *Visitados* · 2) *★ Favoritos* e
+    *♥ Date* — os dois juntos mostram só o que é favorito **e** date · 3) a categoria (uma por vez).
+  - **Histórico**: 1) *Locais* × *Eventos* · 2) *★ Favoritos* e *♥ Date* · 3) a categoria.
+  - O número em cada filtro já diz quantos sobram se você tocar nele.
+- O botão **⇅** no canto de cima ordena a lista e a escolha fica guardada (cada aba tem a sua):
+  - Locais: nome (A–Z), adicionados recentemente / há mais tempo, visitados recentemente, próximos na agenda,
+    por categoria;
+  - Histórico: mais recentes, mais antigos, nome (A–Z), por categoria.
+
 ### Notificações
 - Em qualquer item com horário (evento, visita a local, horário avulso, compromisso), toque no **sino**
   na ficha da agenda — ou ligue **Notificar antes** no formulário — e escolha a antecedência:
@@ -103,9 +115,10 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
 ### Conclusão automática e histórico
 - Marcar um local como **visitado** (✓) registra no histórico.
 - Eventos, visitas a locais e horários avulsos cujo horário **passou sem alteração** são marcados como
-  **feitos** automaticamente e vão para o histórico. O local de um evento/visita concluído passa a constar
-  como visitado.
-- **Compromissos** (rotina: trabalho, terapia…) aparecem como feitos na agenda, mas **não entram no Histórico**.
+  **feitos** automaticamente; eventos e visitas vão também para o histórico. O local de um evento/visita
+  concluído passa a constar como visitado.
+- **Compromissos** (rotina: trabalho, terapia…) e **horários avulsos** aparecem como feitos na agenda, mas
+  **não entram no Histórico** — ele guarda só locais e eventos.
 - Se algo não aconteceu, toque nele (na agenda ou no histórico) → **Não aconteceu**.
 
 ## Seus dados
@@ -145,6 +158,7 @@ npm test                         # testes da lógica da agenda (node:test)
 node tests/e2e.cjs               # teste de ponta a ponta num iPhone emulado (requer Playwright)
 node tests/agenda-drag.cjs       # arrastar na agenda (gestos de toque simulados)
 node tests/agenda-reorg.cjs      # Plano B, deslizar, perguntar ao sobrepor, adiantar, desfazer/refazer
+node tests/lists-filters.cjs     # filtros em seções e ordenação (Locais, escolha de local, Histórico)
 ```
 
 Estrutura:

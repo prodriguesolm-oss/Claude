@@ -3,7 +3,7 @@
 // Uma cópia de segurança (sem fotos) também fica no localStorage para recuperação.
 
 import * as db from './db.js';
-import { sweep, applyMove, historyFor, historyId, optGroups, optMembers, occByKey } from './schedule.js';
+import { sweep, applyMove, historyFor, historyId, optGroups, optMembers, occByKey, inHistory } from './schedule.js';
 import { uid, norm } from './util.js';
 
 export const DEFAULT_SETTINGS = {
@@ -238,9 +238,9 @@ export async function init() {
   }
 
   if (!state.lastSweep) await commit([put('meta', { key: 'lastSweep', value: Date.now() })], { silent: true, record: false });
-  // compromissos não ficam no Histórico (versão 10): limpa os registros antigos
-  const oldCommitHist = state.history.filter((h) => h.kind === 'commitment');
-  if (oldCommitHist.length) await commit(oldCommitHist.map((h) => del('history', h.id)), { silent: true, record: false });
+  // o Histórico guarda só locais e eventos (compromissos saíram na versão 10, horários avulsos na 11)
+  const notHist = state.history.filter((h) => !inHistory(h.kind));
+  if (notHist.length) await commit(notHist.map((h) => del('history', h.id)), { silent: true, record: false });
   await runSweep();
   db.requestPersist().then((p) => { state.persisted = p; });
 }
@@ -490,7 +490,7 @@ export async function setOccStatus(occ, status) {
       ops.push(put('commitments', { ...c, overrides: ov, updatedAt: now }));
     }
   }
-  if (status === 'done' && occ.kind !== 'commitment') { // compromissos não vão para o Histórico
+  if (status === 'done' && inHistory(occ.kind)) { // compromissos e horários avulsos não vão para o Histórico
     const at = Math.min(now, occ.end);
     ops.push(put('history', historyFor(occ, 'manual', at)));
     ops.push(...markPlaceVisitedOps(occ.placeId, at, occ.kind));
@@ -663,7 +663,7 @@ export async function importData(data) {
   if (!data || data.app !== 'agentonator') throw new Error('Arquivo não é um backup do Agentonator.');
   const ops = [];
   for (const s of [...COLLECTIONS, 'photos']) ops.push({ type: 'clear', store: s });
-  for (const s of COLLECTIONS) for (const v of data[s] || []) if (v && v.id && !(s === 'history' && v.kind === 'commitment')) ops.push(put(s, v)); // compromissos não vão para o Histórico
+  for (const s of COLLECTIONS) for (const v of data[s] || []) if (v && v.id && !(s === 'history' && !inHistory(v.kind))) ops.push(put(s, v)); // Histórico: só locais e eventos
   for (const p of data.photos || []) if (p && p.id && p.full) ops.push(put('photos', p));
   ops.push(put('meta', { key: 'settings', value: { ...DEFAULT_SETTINGS, ...(data.settings || {}) } }));
   ops.push(put('meta', { key: 'lastSweep', value: data.lastSweep || Date.now() }));
