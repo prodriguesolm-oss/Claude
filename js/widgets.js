@@ -16,47 +16,57 @@ export function chipBar(options, active) {
   return html`<div class="chips" role="tablist">${options.map(([v, label, n]) => html`<button type="button" class="chip ${v === active ? 'on' : ''}" data-chip="${v}" role="tab">${label}${n != null ? html`<small>${n}</small>` : ''}</button>`)}</div>`;
 }
 
-// ---------- filtros em seções (cada seção é uma linha de chips) ----------
-// sections: [{ id, mode: 'one' | 'all', options: [[valor, rótulo, pass(item)]] }]
-//  - 'one': no máximo um por seção (tocar de novo tira)
-//  - 'all': vários ao mesmo tempo — o item precisa ter todos (ex.: ★ Favorito E ♥ Date)
-// Entre as seções também vale "E". sel = { [idDaSeção]: [valores] }
+// ---------- filtros múltiplos (uma linha só; dá para ligar vários; tocar de novo tira) ----------
+// Os chips vêm em grupos: sections: [{ id, mode: 'any' | 'all', options: [[valor, rótulo, pass(item)]] }]
+//  - 'any': vale qualquer um dos ligados do grupo (ex.: Cultura OU Aventura; Visitados OU Não visitados)
+//  - 'all': precisa ter todos os ligados do grupo (ex.: ★ Favorito E ♥ Date)
+// Entre grupos diferentes vale "E" (ex.: Cultura/Aventura E favorito). sel = { [idDoGrupo]: [valores] }
 
 const optPass = (s, v) => s.options.find((o) => o[0] === v)?.[2] || (() => true);
 
 /** função que diz se um item passa por todos os filtros escolhidos */
 export function facetPass(sections, sel) {
   const active = sections.map((s) => [s, sel[s.id] || []]).filter(([, vals]) => vals.length);
-  return (it) => active.every(([s, vals]) => vals.every((v) => optPass(s, v)(it)));
+  return (it) => active.every(([s, vals]) => (s.mode === 'all' ? vals.every((v) => optPass(s, v)(it)) : vals.some((v) => optPass(s, v)(it))));
 }
 
 export const facetActive = (sel) => Object.values(sel || {}).some((v) => v && v.length);
 
-/** liga/desliga um filtro, respeitando o modo da seção */
+/** liga/desliga um filtro (os outros ligados continuam) */
 export function toggleFacet(sections, sel, id, v) {
-  const s = sections.find((x) => x.id === id);
-  if (!s) return sel;
+  if (!sections.some((x) => x.id === id)) return sel;
   const cur = sel[id] || [];
-  const next = cur.includes(v) ? cur.filter((x) => x !== v) : s.mode === 'one' ? [v] : [...cur, v];
-  return { ...sel, [id]: next };
+  return { ...sel, [id]: cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v] };
 }
 
 /**
- * As linhas de chips. A contagem de cada chip já considera os filtros das outras seções
- * (mostra quantos sobrariam ao tocar nele).
+ * Uma linha de chips (com um tracinho entre os grupos). A contagem de cada chip já considera
+ * os outros filtros ligados; com algum ligado, "Limpar" aparece no começo da linha.
  */
 export function facetBar(sections, sel, items) {
   const any = facetActive(sel);
-  return html`<div class="facets">${sections.map((s, i) => {
+  const groups = sections.map((s) => {
     const others = facetPass(sections.filter((x) => x !== s), sel);
     const own = s.mode === 'all' ? sel[s.id] || [] : [];
     const base = items.filter((it) => others(it) && own.every((v) => optPass(s, v)(it)));
-    return html`<div class="chips facet-row" data-row="${s.id}">${s.options.map(([v, label, pass]) => {
+    return s.options.map(([v, label, pass]) => {
       const on = (sel[s.id] || []).includes(v);
       const n = base.filter(pass).length;
       return html`<button type="button" class="chip ${on ? 'on' : ''} ${!on && !n ? 'zero' : ''}" data-chip="${v}" data-facet="${s.id}" aria-pressed="${on ? 'true' : 'false'}">${label}<small>${n}</small></button>`;
-    })}${i === 0 && any ? html`<button type="button" class="chip clear" data-act="clear-facets">${ic('x', 'i xs')} Limpar</button>` : ''}</div>`;
-  })}</div>`;
+    });
+  });
+  return html`<div class="chips facets">${any ? html`<button type="button" class="chip clear" data-act="clear-facets">${ic('x', 'i xs')} Limpar</button>` : ''}${groups.map((g, i) => html`${i ? html`<span class="chip-sep" aria-hidden="true"></span>` : ''}${g}`)}</div>`;
+}
+
+/** redesenha os chips sem o chip tocado "pular" de lugar (o "Limpar" entra/sai no começo da linha) */
+export function keepChipPlace(scope, chipEl, rerender) {
+  const key = chipEl && `[data-facet="${chipEl.dataset.facet}"][data-chip="${chipEl.dataset.chip}"]`;
+  const x0 = chipEl ? chipEl.getBoundingClientRect().left : null;
+  rerender();
+  if (!key) return;
+  const now = scope.querySelector(key);
+  const row = now?.closest('.chips');
+  if (row) row.scrollLeft += now.getBoundingClientRect().left - x0;
 }
 
 /** botão "ordenar" (mostra a ordem atual numa palavra). sorts: [[valor, rótulo, curto]] */

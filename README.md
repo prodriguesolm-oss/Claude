@@ -40,7 +40,7 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
 | Aba | Para quê |
 |---|---|
 | **Agenda** | A principal. Junta horários avulsos, eventos, visitas a locais e compromissos numa linha do tempo do dia (ou lista das próximas 3 semanas). |
-| **Locais** | Cadastro de lugares com nome, endereço, foto e classificação (Cultura, Aventura, Bares e restaurantes, Outros). Busca por nome, filtros que se somam, ordenação, ★ favorito, ♥ Date e ✓ visitado direto na lista; data da visita editável. |
+| **Locais** | Cadastro de lugares com nome, endereço, foto e classificação (Cultura, Aventura, Bares e restaurantes, Outros). Busca por nome, vários filtros ao mesmo tempo, ordenação, ★ favorito, ♥ Date e ✓ visitado direto na lista; data da visita editável. |
 | **Eventos** | Eventos sempre ligados a um local cadastrado, com data/hora opcional, classificação, ★ favorito e ♥ Date. Eventos já feitos podem ter a data corrigida sem deixar de estar feitos. |
 | **Compromissos** | Lista da sua rotina, agrupada por frequência: **diário**, **semanal**, **mensal** ou **único**. |
 | **Favoritos** | Locais e eventos marcados com ★, com filtro por tipo, e o filtro **♥ Date** com todos os locais e eventos marcados como Date. |
@@ -92,11 +92,14 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
   também oferece adiantá-lo, e **Terminei agora** (na ficha de algo em andamento) encerra o item e mostra o mesmo botão.
 
 ### Filtros e ordenação (Locais, escolha de local e Histórico)
-- Os filtros ficam em **linhas que se somam** (vale "E" entre elas); tocar de novo num filtro tira só ele, e
-  **Limpar** tira todos:
-  - **Locais** (e a escolha de local ao agendar): 1) *Não visitados* × *Visitados* · 2) *★ Favoritos* e
-    *♥ Date* — os dois juntos mostram só o que é favorito **e** date · 3) a categoria (uma por vez).
-  - **Histórico**: 1) *Locais* × *Eventos* · 2) *★ Favoritos* e *♥ Date* · 3) a categoria.
+- Os filtros ficam **numa linha só** e dá para **ligar vários ao mesmo tempo**; tocar de novo num filtro tira só
+  ele, e **Limpar** (no começo da linha) tira todos. Como eles se combinam:
+  - filtros de tipos diferentes se somam — ex.: *Cultura* + *★ Favoritos* = favoritos de cultura;
+  - *★ Favoritos* + *♥ Date* = só o que é favorito **e** date;
+  - duas categorias (ex.: *Cultura* + *Aventura*) mostram as duas; o mesmo vale para *Visitados* + *Não visitados*
+    (e, no Histórico, *Locais* + *Eventos*).
+  - Locais (e a escolha de local ao agendar): *Não visitados*, *Visitados* · *★ Favoritos*, *♥ Date* · categorias.
+  - Histórico: *Locais*, *Eventos* · *★ Favoritos*, *♥ Date* · categorias.
   - O número em cada filtro já diz quantos sobram se você tocar nele.
 - O botão **⇅** no canto de cima ordena a lista e a escolha fica guardada (cada aba tem a sua):
   - Locais: nome (A–Z), adicionados recentemente / há mais tempo, visitados recentemente, próximos na agenda,
@@ -158,7 +161,7 @@ npm test                         # testes da lógica da agenda (node:test)
 node tests/e2e.cjs               # teste de ponta a ponta num iPhone emulado (requer Playwright)
 node tests/agenda-drag.cjs       # arrastar na agenda (gestos de toque simulados)
 node tests/agenda-reorg.cjs      # Plano B, deslizar, perguntar ao sobrepor, adiantar, desfazer/refazer
-node tests/lists-filters.cjs     # filtros em seções e ordenação (Locais, escolha de local, Histórico)
+node tests/lists-filters.cjs     # filtros múltiplos e ordenação (Locais, escolha de local, Histórico)
 ```
 
 Estrutura:

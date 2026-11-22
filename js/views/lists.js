@@ -26,7 +26,7 @@ function filterAndRank(items, q, fieldsOf, fallbackSort) {
 const placeName = (id) => state.places.find((p) => p.id === id)?.name || '';
 
 // ---------- Locais ----------
-// Filtros em 3 linhas (visitados × não visitados · ★ e ♥ · categoria), que se somam; tocar de novo tira.
+// Filtros numa linha só; dá para ligar vários (tocar de novo tira). Ver widgets.js → facetBar.
 
 const CAT_TITLE = Object.fromEntries([...CAT_OPTIONS, [null, 'Sem classificação']]);
 
@@ -200,7 +200,7 @@ export const createFavoritesView = () => createListView({
 });
 
 // ---------- Histórico ----------
-// Só locais (visitados / visitas) e eventos, com a foto do local. Filtros em 3 linhas (tipo · ★ e ♥ · categoria)
+// Só locais (visitados / visitas) e eventos, com a foto do local. Filtros numa linha (tipo · ★ e ♥ · categoria)
 // e ordenação (mais recentes, mais antigos, A–Z, por categoria).
 
 const isPlaceKind = (k) => k === 'place' || k === 'visit';
@@ -218,7 +218,7 @@ function histEntries() {
 }
 
 const HIST_FACETS = [
-  { id: 'kind', mode: 'one', options: [['place', 'Locais', (x) => isPlaceKind(x.h.kind)], ['event', 'Eventos', (x) => x.h.kind === 'event']] },
+  { id: 'kind', mode: 'any', options: [['place', 'Locais', (x) => isPlaceKind(x.h.kind)], ['event', 'Eventos', (x) => x.h.kind === 'event']] },
   { id: 'mark', mode: 'all', options: [['fav', '★ Favoritos', (x) => x.fav], ['date', '♥ Date', (x) => x.date]] },
   catSection((x) => x.cat),
 ];

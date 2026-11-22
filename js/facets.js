@@ -12,13 +12,13 @@ export const CAT_OPTIONS = [
 const CAT_ORDER = ['cultura', 'aventura', 'bares', 'outros', null];
 export const catRank = (c) => { const i = CAT_ORDER.indexOf(c || null); return i < 0 ? CAT_ORDER.length : i; };
 
-/** seção de categorias (uma por vez) a partir de uma função que diz a categoria do item */
-export const catSection = (catOf) => ({ id: 'cat', mode: 'one', options: CAT_OPTIONS.map(([v, l]) => [v, l, (x) => catOf(x) === v]) });
+/** grupo de categorias (vale qualquer uma das ligadas) a partir de uma função que diz a categoria do item */
+export const catSection = (catOf) => ({ id: 'cat', mode: 'any', options: CAT_OPTIONS.map(([v, l]) => [v, l, (x) => catOf(x) === v]) });
 
 // ---------- Locais ----------
-// 1ª linha: visitados × não visitados · 2ª: ★ Favoritos e ♥ Date (juntos = os dois) · 3ª: categoria
+// numa linha só: visitados / não visitados · ★ Favoritos e ♥ Date (juntos = os dois) · categorias
 export const PLACE_FACETS = [
-  { id: 'visit', mode: 'one', options: [['todo', 'Não visitados', (p) => !p.visited], ['visited', 'Visitados', (p) => !!p.visited]] },
+  { id: 'visit', mode: 'any', options: [['todo', 'Não visitados', (p) => !p.visited], ['visited', 'Visitados', (p) => !!p.visited]] },
   { id: 'mark', mode: 'all', options: [['fav', '★ Favoritos', (p) => !!p.favorite], ['date', '♥ Date', (p) => !!p.isDate]] },
   catSection((p) => p.category || null),
 ];

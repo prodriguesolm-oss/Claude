@@ -1,6 +1,6 @@
 // Fábrica de abas no formato "título + busca + filtros + lista + botão +".
 import { html, setHTML, $ } from '../ui.js';
-import { viewHeader, searchBar, chipBar, setActiveChip, fab, facetBar, facetPass, toggleFacet, facetActive, sortButton } from '../widgets.js';
+import { viewHeader, searchBar, chipBar, setActiveChip, fab, facetBar, facetPass, toggleFacet, facetActive, sortButton, keepChipPlace } from '../widgets.js';
 import { handleRowAction } from '../rows.js';
 import { sortOf, chooseSort } from '../facets.js';
 
@@ -41,7 +41,7 @@ export function createListView(cfg) {
       const fchip = e.target.closest('[data-facet]');
       if (fchip && cfg.facets) {
         sel = toggleFacet(cfg.facets, sel, fchip.dataset.facet, fchip.dataset.chip);
-        renderChips();
+        keepChipPlace(els.chips, fchip, renderChips);
         renderList();
         return;
       }

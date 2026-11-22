@@ -7,7 +7,7 @@ import { openSheet, html, ic, raw, toast, shake, confirmDialog, alertDialog, set
 import {
   segHTML, switchCell, textCell, dateTimeCells, durationCell, readStart, placePickerCell,
   bindFormWidgets, searchBar, placeThumb, remindCells, readRemind, chipBar, catBadge,
-  facetBar, facetPass, toggleFacet, sortButton,
+  facetBar, facetPass, toggleFacet, sortButton, keepChipPlace,
 } from './widgets.js';
 import { PLACE_FACETS, PLACE_SORTS, placeComparator, sortOf, chooseSort } from './facets.js';
 import { pushReady } from './push.js';
@@ -89,7 +89,7 @@ function openFilterPicker(cfg) {
   });
   ctl.body.addEventListener('click', async (e) => {
     const fchip = e.target.closest('[data-facet]');
-    if (fchip && cfg.facets) { sel = toggleFacet(cfg.facets, sel, fchip.dataset.facet, fchip.dataset.chip); renderChips(); render(); return; }
+    if (fchip && cfg.facets) { sel = toggleFacet(cfg.facets, sel, fchip.dataset.facet, fchip.dataset.chip); keepChipPlace(chipsEl, fchip, renderChips); render(); return; }
     const chip = e.target.closest('[data-chip]');
     if (chip) { filter = chip.dataset.chip; renderChips(); render(); return; }
     if (e.target.closest('[data-act="clear-facets"]')) { sel = {}; renderChips(); render(); return; }
@@ -118,7 +118,7 @@ export function openPlacePicker(selectedId, { title = 'Escolher local' } = {}) {
     title,
     placeholder: 'Buscar locais',
     items: state.places,
-    // mesmos filtros da aba Locais: visitados × não visitados · ★ e ♥ (juntos = os dois) · categoria
+    // mesmos filtros da aba Locais (numa linha, vários ao mesmo tempo)
     facets: PLACE_FACETS,
     sorts: PLACE_SORTS,
     sortKey: 'places',

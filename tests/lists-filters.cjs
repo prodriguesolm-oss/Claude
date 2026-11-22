@@ -1,5 +1,5 @@
-// Teste de ponta a ponta dos filtros em seções e da ordenação (iPhone emulado):
-// aba Locais (visitados × não visitados · ★ e ♥ juntos · categoria), escolha de local pela agenda,
+// Teste de ponta a ponta dos filtros múltiplos (numa linha) e da ordenação (iPhone emulado):
+// aba Locais (visitados / não visitados · ★ e ♥ juntos · categorias), escolha de local pela agenda,
 // e aba Histórico (só locais e eventos, foto do local, filtros e ordenação).
 // Uso: python3 -m http.server 8765  (na raiz do projeto)  e depois:  node tests/lists-filters.cjs
 const { chromium, devices } = require('playwright');
@@ -57,10 +57,10 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
   await page.reload({ waitUntil: 'networkidle' });
   await wait(500);
 
-  // ---------- 1) Locais: filtros em 3 linhas ----------
+  // ---------- 1) Locais: filtros numa linha só, vários ao mesmo tempo ----------
   console.log('Locais — filtros');
   await tab('places');
-  assert(await view('places').locator('.facet-row').count() === 3, 'três linhas de filtro: visitados · ★/♥ · categoria');
+  assert(await view('places').locator('.facets').count() === 1 && await view('places').locator('.facets [data-facet]').count() === 8, 'uma linha só com os 8 filtros');
   const counts = {};
   for (const v of ['todo', 'visited', 'fav', 'date', 'cultura', 'aventura', 'bares', 'outros']) counts[v] = await chipN('places', v);
   // visitados: trilha e bar (marcados) + theatro e museu (o evento e a visita já passaram → automático)
@@ -68,9 +68,15 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
   await chip('places', 'todo').click(); await wait(200);
   assert(J(await placeNames()) === J(['Confeitaria Colombo', 'Feira da Glória', 'Mirante Dona Marta']), 'Não visitados');
   assert((await view('places').locator('[data-ref=count]').innerText()) === '3 de 7', 'contador "3 de 7"');
-  assert(await chipN('places', 'fav') === 2 && await chipN('places', 'date') === 1, 'contagens das outras linhas já consideram "não visitados"');
+  assert(await chipN('places', 'fav') === 2 && await chipN('places', 'date') === 1, 'contagens dos outros filtros já consideram "não visitados"');
+  assert(await view('places').locator('.facets > :first-child').getAttribute('data-act') === 'clear-facets', '"Limpar" aparece no começo da linha');
+  await chip('places', 'visited').click(); await wait(200);
+  const bothOn = (await chip('places', 'todo').getAttribute('class')).includes(' on') && (await chip('places', 'visited').getAttribute('class')).includes(' on');
+  assert(bothOn && (await placeNames()).length === 7, 'Visitados + Não visitados: os dois ficam ligados (mostra os dois)');
   await chip('places', 'todo').click(); await wait(200);
-  assert((await placeNames()).length === 7, 'tocar de novo tira o filtro');
+  assert(J(await placeNames()) === J(['Bar Astor', 'Museu do Amanhã', 'Theatro Municipal', 'Trilha Pedra Bonita']), 'tocar de novo tira só aquele (fica Visitados)');
+  await chip('places', 'visited').click(); await wait(200);
+  assert((await placeNames()).length === 7, 'sem filtros: todos');
   await chip('places', 'fav').click(); await wait(200);
   assert(J(await placeNames()) === J(['Confeitaria Colombo', 'Mirante Dona Marta', 'Theatro Municipal', 'Trilha Pedra Bonita']), '★ Favoritos');
   await chip('places', 'date').click(); await wait(200);
@@ -78,17 +84,21 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
   await shot('01-locais-dois-filtros');
   await chip('places', 'aventura').click(); await wait(200);
   assert(J(await placeNames()) === J(['Mirante Dona Marta']), '+ Aventura');
-  assert(await chipN('places', 'cultura') === 1, 'Cultura mostra quantos sobrariam trocando de categoria (1)');
   await chip('places', 'cultura').click(); await wait(200);
-  assert(J(await placeNames()) === J(['Theatro Municipal']) && !(await chip('places', 'aventura').getAttribute('class')).includes(' on'), 'categoria é uma por vez: Cultura troca a Aventura');
-  await chip('places', 'cultura').click(); await wait(200);
-  assert(J(await placeNames()) === J(['Mirante Dona Marta', 'Theatro Municipal']), 'tocar na categoria de novo tira só ela');
+  const twoCats = (await chip('places', 'aventura').getAttribute('class')).includes(' on') && (await chip('places', 'cultura').getAttribute('class')).includes(' on');
+  assert(twoCats && J(await placeNames()) === J(['Mirante Dona Marta', 'Theatro Municipal']), '+ Cultura: as duas categorias ficam ligadas (aventura ou cultura)');
+  await shot('01b-locais-quatro-filtros');
+  await chip('places', 'aventura').click(); await wait(200);
+  assert(J(await placeNames()) === J(['Theatro Municipal']), 'tirar a Aventura deixa os outros filtros como estavam');
   await chip('places', 'visited').click(); await wait(200);
-  assert(J(await placeNames()) === J(['Theatro Municipal']), '+ Visitados: visitado E favorito E date');
-  await shot('01b-locais-tres-filtros');
-  await chip('places', 'todo').click(); await wait(200);
-  const onVisited = (await chip('places', 'visited').getAttribute('class')).includes(' on');
-  assert(!onVisited && J(await placeNames()) === J(['Mirante Dona Marta']), 'Não visitados troca o Visitados (um por vez na 1ª linha)');
+  assert(J(await placeNames()) === J(['Theatro Municipal']), '+ Visitados: visitado E favorito E date E cultura');
+  // o chip tocado não "pula" de lugar quando o "Limpar" entra ou sai no começo da linha
+  await view('places').locator('[data-act=clear-facets]').click(); await wait(200);
+  await view('places').locator('.facets').evaluate((el) => { el.scrollLeft = el.scrollWidth; }); await wait(150);
+  const xBefore = (await chip('places', 'outros').boundingBox()).x;
+  await chip('places', 'outros').click(); await wait(250);
+  const xAfter = (await chip('places', 'outros').boundingBox()).x;
+  assert(Math.abs(xAfter - xBefore) < 3 && J(await placeNames()) === J(['Feira da Glória']), `o chip tocado fica no lugar (${Math.round(xBefore)} → ${Math.round(xAfter)})`);
   await view('places').locator('[data-act=clear-facets]').click(); await wait(200);
   assert((await placeNames()).length === 7 && await view('places').locator('.facets .chip.on').count() === 0, '"Limpar" tira todos os filtros');
 
@@ -123,7 +133,7 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
   await tab('agenda');
   await view('agenda').locator('.fab').click(); await wait(400);
   await asBtn('Local (visita)').click(); await wait(500);
-  assert(await sheet().locator('.facet-row').count() === 3 && await sheet().locator('.sort-btn').count() === 1, 'a escolha tem as mesmas 3 linhas de filtro e o botão de ordenar');
+  assert(await sheet().locator('.facets [data-facet]').count() === 8 && await sheet().locator('.sort-btn').count() === 1, 'a escolha tem os mesmos filtros (numa linha) e o botão de ordenar');
   await sheet().locator('[data-chip=fav]').click(); await wait(150);
   await sheet().locator('[data-chip=date]').click(); await wait(150);
   let picks = await sheet().locator('[data-pick] .row-title').allInnerTexts();
@@ -149,7 +159,7 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
   assert(await view('history').locator('.hrow', { hasText: 'Museu' }).locator('.thumb.ph').count() === 1, 'local sem foto mostra as iniciais, como na aba Locais');
   assert(J(titles) === J(['Trilha Pedra Bonita', 'Orquestra Sinfônica', 'Museu do Amanhã', 'Bar Astor']) || J(titles) === J(['Trilha Pedra Bonita', 'Museu do Amanhã', 'Orquestra Sinfônica', 'Bar Astor']), 'ordem padrão: mais recentes primeiro');
   await shot('05-historico');
-  assert(await view('history').locator('.facet-row').count() === 3, 'três linhas de filtro: tipo · ★/♥ · categoria');
+  assert(await view('history').locator('.facets').count() === 1 && await view('history').locator('.facets [data-facet]').count() === 8, 'uma linha de filtros: tipo · ★/♥ · categorias');
   const hc = {};
   for (const v of ['place', 'event', 'fav', 'date', 'cultura', 'aventura', 'bares']) hc[v] = await chipN('history', v);
   assert(J(hc) === J({ place: 3, event: 1, fav: 1, date: 1, cultura: 2, aventura: 1, bares: 1 }), `contagens ${J(hc)}`);
@@ -159,6 +169,13 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
   await chip('history', 'cultura').click(); await wait(200);
   titles = await histTitles();
   assert(titles.length === 2 && titles.includes('Orquestra Sinfônica') && titles.includes('Museu do Amanhã'), 'Cultura: a orquestra (pelo local) e o museu');
+  await chip('history', 'aventura').click(); await wait(200);
+  titles = await histTitles();
+  assert(titles.length === 3 && titles.includes('Trilha Pedra Bonita'), 'Cultura + Aventura: as duas ficam ligadas');
+  await chip('history', 'event').click(); await wait(200);
+  assert(J(await histTitles()) === J(['Orquestra Sinfônica']), '+ Eventos: eventos de cultura ou aventura');
+  await chip('history', 'event').click(); await wait(200);
+  await chip('history', 'aventura').click(); await wait(200);
   await chip('history', 'cultura').click(); await wait(200);
   await chip('history', 'date').click(); await wait(200);
   assert(J(await histTitles()) === J(['Bar Astor']), '♥ Date');
