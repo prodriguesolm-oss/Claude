@@ -332,7 +332,7 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   const chips = await page.locator('[data-view=history] [data-chip]').allInnerTexts();
   assert(!chips.some((c) => /Compromissos/.test(c)), `aba Histórico sem filtro de compromissos (${chips.map((c) => c.replace(/\n/g, ' ')).join(' | ')})`);
   const statsTxt = await page.locator('[data-view=history] .stats').innerText();
-  assert(!/compromisso|avulso/i.test(statsTxt) && /locais visitados/.test(statsTxt) && /eventos feitos/.test(statsTxt), 'contadores: só locais e eventos (+ dates)');
+  assert(!/compromisso|avulso|date/i.test(statsTxt) && /locais visitados/.test(statsTxt) && /eventos feitos/.test(statsTxt) && /total/.test(statsTxt), 'contadores: locais, eventos e total');
   assert(!(await page.locator('[data-view=history]').innerText()).includes('Reunião única'), 'a reunião não aparece no Histórico');
   await shot('10-historico');
   await page.click('.tab[data-tab="agenda"]'); await wait(300);

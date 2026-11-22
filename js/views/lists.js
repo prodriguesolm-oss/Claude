@@ -259,14 +259,12 @@ export const createHistoryView = () => createListView({
     return c && c.filtered && c.shown != null ? `${c.shown} de ${total}` : plural(total, 'registro', 'registros');
   },
   headerExtra: () => {
-    const E = histEntries();
     const visited = state.places.filter((p) => p.visited).length;
-    const ev = E.filter((x) => x.h.kind === 'event').length;
-    const dates = E.filter((x) => x.date).length;
+    const ev = histEntries().filter((x) => x.h.kind === 'event').length;
     return html`<div class="stats">
       <div class="stat k-visit"><b>${visited}</b><span>locais visitados</span></div>
       <div class="stat k-event"><b>${ev}</b><span>eventos feitos</span></div>
-      <div class="stat heart-stat"><b>${dates}</b><span>♥ dates</span></div>
+      <div class="stat total-stat"><b>${visited + ev}</b><span>total</span></div>
     </div>`;
   },
   renderList: (c) => {

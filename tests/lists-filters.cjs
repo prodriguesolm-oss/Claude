@@ -156,6 +156,8 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
   assert(titles.length === 4 && !titles.some((t) => /Mercado|Shopping/.test(t)), 'só locais e eventos (sem horários avulsos, nem o registro antigo)');
   assert(await page.evaluate(async () => (await import('./js/store.js')).state.history.filter((h) => h.kind === 'item').length) === 0, 'registro antigo de avulso apagado');
   assert(await view('history').locator('.hrow', { hasText: 'Orquestra' }).locator('img.thumb').count() === 1, 'evento mostra a foto do local (Theatro)');
+  const stats = (await view('history').locator('.stats .stat').allTextContents()).map((t) => t.replace(/\s+/g, ' ').trim());
+  assert(J(stats) === J(['4locais visitados', '1eventos feitos', '5total']), `contadores: locais, eventos e total = locais + eventos (${J(stats)})`);
   assert(await view('history').locator('.hrow', { hasText: 'Museu' }).locator('.thumb.ph').count() === 1, 'local sem foto mostra as iniciais, como na aba Locais');
   assert(J(titles) === J(['Trilha Pedra Bonita', 'Orquestra Sinfônica', 'Museu do Amanhã', 'Bar Astor']) || J(titles) === J(['Trilha Pedra Bonita', 'Museu do Amanhã', 'Orquestra Sinfônica', 'Bar Astor']), 'ordem padrão: mais recentes primeiro');
   await shot('05-historico');

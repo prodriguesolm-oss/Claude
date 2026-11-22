@@ -621,4 +621,4 @@ b { font-weight: 600; }
 .sort-btn { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px 0 9px; border-radius: 15px; background: var(--fill2); color: var(--accent); font-size: 14px; font-weight: 600; white-space: nowrap; }
 .sort-btn:active { background: rgba(142, 140, 255, .2); }
 .pick-tools { display: flex; justify-content: flex-end; margin-top: 8px; }
-.heart-stat { --kc: #ff4f7b; --kbg: rgba(255, 79, 123, .16); }
+.total-stat { --kc: var(--text); --kbg: var(--fill2); }
