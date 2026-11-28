@@ -188,7 +188,7 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   console.log('   blocos terça:', blocksTue.map(t => t.replace(/\n/g,' | ')));
   assert(blocksTue.some(t => t.includes('Terapia')), 'Terapia aparece na terça');
   assert(blocksTue.some(t => t.includes('Ópera')), 'Ópera aparece na terça');
-  await view('agenda').evaluate(el => el.scrollTop = 920);
+  await view('agenda').evaluate(el => el.scrollTop = 680);
   await shot('10-agenda-tuesday');
 
   // adiar a terapia desta terça em +1 dia

@@ -19,9 +19,9 @@ import {
 } from '../time.js';
 
 const PX = 1; // pixels por minuto (60px por hora)
-// a linha do tempo de um dia também mostra a noite anterior (desde 18:00) e a madrugada seguinte (até 06:00):
+// a linha do tempo de um dia também mostra o fim da noite anterior (desde 22:00) e a madrugada seguinte (até 06:00):
 // assim dá para arrastar algo que atravessa a meia-noite (dormir 23h–8h30, bar 23h–2h) sem trocar de dia
-const EXT_B = 6 * 60; // minutos antes de 00:00
+const EXT_B = 2 * 60; // minutos antes de 00:00
 const EXT_A = 6 * 60; // minutos depois de 24:00
 const SNAP = 15; // minutos
 const TAP_WAIT = 300; // ms para distinguir toque simples de toque triplo

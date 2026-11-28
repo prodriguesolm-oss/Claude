@@ -43,8 +43,8 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
 | **Afazeres** | O que está marcado na agenda, dia a dia, numa lista fácil de ler. Abre em **Hoje**; rolando para baixo, o que vem; para cima, o que já passou. Entram sempre as visitas a locais e os eventos com data; compromissos e horários avulsos só se tiverem **Incluir em Afazeres** ligado no cadastro (ex.: terapia sim, dormir e trabalho não). Filtros (pendentes, feitos, tipo) e ordem. |
 | **Explorar** | **Locais** e **Eventos** na mesma aba, com o alternador "Locais 77 · Eventos 12" no topo (abre em Locais). Em cada lado: busca, vários filtros ao mesmo tempo, ordenação e ★ favorito, ♥ Date e ✓ visitado/feito em coluna à direita de cada linha. Por padrão a lista vem separada em **Não visitados** e **Visitados**. |
 | **Compromissos** | Lista da sua rotina, agrupada por frequência: **diário**, **semanal**, **mensal** ou **único**. |
-| **Histórico** | Locais visitados e eventos feitos, com a foto do local; o botão **ⓘ** de cada linha mostra quando e como foi marcado (por você, automático ou importado). Um mesmo local aparece uma vez só por dia. Filtros (tipo, ★, ♥, categoria) e ordenação. Compromissos e horários avulsos não entram. |
 | **Favoritos** | Locais e eventos marcados com ★, com filtro por tipo, e o filtro **♥ Date** com todos os locais e eventos marcados como Date. |
+| **Histórico** | Locais visitados e eventos feitos, com a foto do local; o botão **ⓘ** de cada linha mostra quando e como foi marcado (por você, automático ou importado). Um mesmo local aparece uma vez só por dia. Filtros (tipo, ★, ♥, categoria) e ordenação. Compromissos e horários avulsos não entram. |
 
 ### Agenda
 - **Cores pela classificação**: Aventura em verde, Cultura em amarelo, Bares e restaurantes em vermelho,
@@ -74,8 +74,8 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
 - **Deslizar um bloco para a esquerda** tira da agenda (dá para voltar com ↶). Se era algo **que já tinha acontecido**,
   também sai do Histórico e o app pergunta **o que você fez nesse horário** (horário avulso, local, evento ou
   compromisso) para o Histórico ficar certo. Um local que só estava "visitado" por causa dele volta a não visitado.
-- **Virada da meia-noite**: cada dia mostra também a **noite anterior (desde 18:00)** e a **madrugada seguinte
-  (até 06:00)**, num tom mais escuro. Dá para arrastar algo para atravessar a meia-noite sem trocar de dia — ex.:
+- **Virada da meia-noite**: cada dia mostra também o **fim da noite anterior (desde 22:00)** e a **madrugada
+  seguinte (até 06:00)**, num tom mais escuro. Dá para arrastar algo para atravessar a meia-noite sem trocar de dia — ex.:
   "Dormir" das 00:00 do dia 28 puxado para começar 23:00 do dia 27, ou um bar das 23:00 às 02:00.
 - **Deslizar para os lados fora dos blocos** troca de dia (na faixa da semana, troca de semana). Tocar no mês abre o calendário.
 - **Editar um compromisso** (na aba Compromissos) só muda as ocorrências que **ainda não começaram**: as que já

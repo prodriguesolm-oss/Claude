@@ -12,8 +12,8 @@ const TABS = [
   { id: 'todos', label: 'Afazeres', icon: 'checklist', make: createTodosView },
   { id: 'explore', label: 'Explorar', icon: 'compass', make: createExploreView }, // Locais | Eventos
   { id: 'commitments', label: 'Compromissos', icon: 'repeat', make: createCommitmentsView },
-  { id: 'history', label: 'Histórico', icon: 'history', make: createHistoryView },
   { id: 'favorites', label: 'Favoritos', icon: 'star', make: createFavoritesView },
+  { id: 'history', label: 'Histórico', icon: 'history', make: createHistoryView },
 ];
 
 const views = new Map(); // id -> { view, el, dirty }

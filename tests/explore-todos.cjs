@@ -80,7 +80,7 @@ const day = (offset) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDat
   // ---------- 1) abas ----------
   console.log('Abas');
   const tabs = await page.locator('.tab span').allInnerTexts();
-  assert(J(tabs) === J(['Agenda', 'Afazeres', 'Explorar', 'Compromissos', 'Histórico', 'Favoritos']), `ordem das abas: ${tabs.join(' | ')}`);
+  assert(J(tabs) === J(['Agenda', 'Afazeres', 'Explorar', 'Compromissos', 'Favoritos', 'Histórico']), `ordem das abas: ${tabs.join(' | ')}`);
 
   // ---------- 2) Explorar ----------
   console.log('Explorar');
@@ -191,7 +191,9 @@ const day = (offset) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDat
   await tab('agenda');
   await page.locator('[data-ref=jump]').fill(dk(D2)); await wait(500);
   await page.locator('[data-view=agenda]').evaluate((el) => { el.scrollTop = 0; }); await wait(300);
-  assert(await view('agenda').locator('.tl-ext').count() === 2 && /noite/i.test(await view('agenda').locator('.tl-ext').first().innerText()), 'o dia mostra a noite anterior (e a madrugada seguinte)');
+  assert(await view('agenda').locator('.tl-ext').count() === 2 && /noite/i.test(await view('agenda').locator('.tl-ext').first().innerText()), 'o dia mostra o fim da noite anterior (e a madrugada seguinte)');
+  const firstHour = (await view('agenda').locator('.tl-hour span').first().innerText()).trim();
+  assert(firstHour === '22:00', `do dia anterior, só a partir das 22:00 (${firstHour})`);
   const b = await view('agenda').locator('.tl-b', { hasText: 'Dormir' }).boundingBox();
   await drag(b.x + b.width / 2, b.y + 60, b.x + b.width / 2, b.y + 60 - 60);
   if (await page.locator('.as-wrap.open').count()) await page.locator('.as-wrap.open .as-cancel').click();

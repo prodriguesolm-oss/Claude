@@ -104,7 +104,7 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   console.log('Adicionar com filtros');
   await goDay(D3);
   let tl = await page.locator('[data-view=agenda] .tl').boundingBox();
-  await page.locator('[data-view=agenda]').evaluate((el) => { el.scrollTop = 1260; }); await wait(250);
+  await page.locator('[data-view=agenda]').evaluate((el) => { el.scrollTop = 1020; }); await wait(250);
   tl = await page.locator('[data-view=agenda] .tl').boundingBox();
   await page.touchscreen.tap(tl.x + 200, tl.y + 17 * 60 + 5); await wait(500); // 17:00
   await asBtn('Local (visita)').click(); await wait(500);
@@ -120,7 +120,7 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   assert((await occs(D3))['Trilha Pedra Bonita'] === '17:00–19:00', 'visita à trilha agendada 17:00–19:00');
 
   // evento já cadastrado (sem data) num horário
-  await page.locator('[data-view=agenda]').evaluate((el) => { el.scrollTop = 1260; }); await wait(250);
+  await page.locator('[data-view=agenda]').evaluate((el) => { el.scrollTop = 1020; }); await wait(250);
   tl = await page.locator('[data-view=agenda] .tl').boundingBox();
   await page.touchscreen.tap(tl.x + 200, tl.y + 20 * 60 + 5); await wait(500); // 20:00
   await asBtn('Evento').click(); await wait(500);
@@ -187,7 +187,7 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   assert(o['Trilha Pedra Bonita [A]'] === '17:00–19:00 ?' && o['Biblioteca Nacional [B]'] === '17:00–19:00 ?', 'depois do horário, as duas opções ficam "escolha"');
   assert(/escolha a opção/.test(await page.locator('[data-ref=daytitle]').innerText()), 'o dia avisa "escolha a opção"');
   assert(await S((s) => s.history.filter((h) => h.kind === 'visit').length) === 0, 'nada vai para o Histórico enquanto houver duas opções');
-  await page.locator('[data-view=agenda]').evaluate((el) => { el.scrollTop = 1260; }); await wait(250);
+  await page.locator('[data-view=agenda]').evaluate((el) => { el.scrollTop = 1020; }); await wait(250);
   await shot('05-escolha');
   b = await box('Biblioteca Nacional');
   await page.touchscreen.tap(b.x + b.width / 2, b.y + 30); await wait(700);
@@ -202,7 +202,7 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
 
   // ---------- 7) deslizar algo que já tinha acontecido -> "o que você fez?" ----------
   console.log('Substituir o que foi feito');
-  await page.locator('[data-view=agenda]').evaluate((el) => { el.scrollTop = 740; }); await wait(250);
+  await page.locator('[data-view=agenda]').evaluate((el) => { el.scrollTop = 500; }); await wait(250);
   b = await box('Academia');
   await drag(b.x + b.width - 15, b.y + 25, b.x - 140, b.y + 27, { hold: 0 });
   assert(await page.locator('.as-wrap.open .as-title').innerText() === 'O que você fez nesse horário?', 'pergunta o que você fez nesse horário');
@@ -218,7 +218,7 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   // ---------- 8) sobreposição: perguntar, com "só atrasar o início do próximo" ----------
   console.log('Perguntar ao sobrepor');
   await goDay(D);
-  await page.locator('[data-view=agenda]').evaluate((el) => { el.scrollTop = 620; }); await wait(250);
+  await page.locator('[data-view=agenda]').evaluate((el) => { el.scrollTop = 380; }); await wait(250);
   b = await box('Dormir');
   await drag(b.x + b.width / 2, b.y + b.height - 6, b.x + b.width / 2, b.y + b.height - 6 + 90);
   assert(await page.locator('.as-wrap.open .as-title').innerText() === 'Isso vai bater com outro horário', 'ao soltar em cima da terapia, o app pergunta');
@@ -275,7 +275,7 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
     await s.saveItem({ title: 'Reunião', start: t.atMinutes(k, 9 * 60), end: t.atMinutes(k, 10 * 60) });
   }, dk(day(4)));
   await goDay(day(4));
-  await page.locator('[data-view=agenda]').evaluate((el) => { el.scrollTop = 660; }); await wait(250);
+  await page.locator('[data-view=agenda]').evaluate((el) => { el.scrollTop = 420; }); await wait(250);
   tl = await page.locator('[data-view=agenda] .tl').boundingBox();
   await page.touchscreen.tap(tl.x + 200, tl.y + 8 * 60 + 5); await wait(500);
   const slotOpts = await page.locator('.as-wrap.open .as-btn').allInnerTexts();
@@ -348,7 +348,7 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   assert(o.Dormir === '00:00–09:30' && o.Terapia === '09:30–10:00' && o.Trajeto === '13:00–13:15', 'tudo salvo após reabrir');
   assert((await occs(D3))['Biblioteca Nacional [B]'] === '17:00–19:00', 'Plano B salvo após reabrir');
   await goDay(D3);
-  await page.locator('[data-view=agenda]').evaluate((el) => { el.scrollTop = 1260; }); await wait(250);
+  await page.locator('[data-view=agenda]').evaluate((el) => { el.scrollTop = 1020; }); await wait(250);
   await shot('09-final');
 
   console.log('\nCapturas em:', SHOTS);
