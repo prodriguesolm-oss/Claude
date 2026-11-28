@@ -173,7 +173,7 @@ export function openOccurrenceSheet(key) {
         ${occ.kind === 'visit' ? html`<button type="button" class="cell" data-act="edit-visit"><span class="cell-ic">${ic('pencil', 'i sm')}</span><span class="grow">Editar visita</span>${ic('chevR', 'i sm muted')}</button>` : ''}
         ${occ.kind === 'item' ? html`<button type="button" class="cell" data-act="edit-item"><span class="cell-ic">${ic('pencil', 'i sm')}</span><span class="grow">Editar título e observação</span>${ic('chevR', 'i sm muted')}</button>` : ''}
         ${occ.placeId ? html`<button type="button" class="cell" data-act="open-place"><span class="cell-ic">${ic('pin', 'i sm')}</span><span class="grow">Ver local</span>${ic('chevR', 'i sm muted')}</button>` : ''}
-        ${occ.kind === 'commitment' ? html`<button type="button" class="cell" data-act="edit-commitment"><span class="cell-ic">${ic('pencil', 'i sm')}</span><span class="grow">Editar compromisso${occ.recurring ? ' (todas as ocorrências)' : ''}</span>${ic('chevR', 'i sm muted')}</button>` : ''}
+        ${occ.kind === 'commitment' && !state.commitments.find((c) => c.id === occ.refId)?.ended ? html`<button type="button" class="cell" data-act="edit-commitment"><span class="cell-ic">${ic('pencil', 'i sm')}</span><span class="grow">Editar compromisso${occ.recurring ? ' (as próximas ocorrências)' : ''}</span>${ic('chevR', 'i sm muted')}</button>` : ''}
       </div>
       <div class="form-group">
         ${occ.recurring ? html`<button type="button" class="cell danger" data-act="cancel-occ"><span class="cell-ic">${ic('ban', 'i sm')}</span><span class="grow">Cancelar só ${SCOPE_LABEL[occ.freq]}</span></button>` : ''}

@@ -3,7 +3,7 @@
 // Uma cópia de segurança (sem fotos) também fica no localStorage para recuperação.
 
 import * as db from './db.js';
-import { sweep, applyMove, historyFor, historyId, optGroups, optMembers, occByKey, inHistory } from './schedule.js';
+import { sweep, applyMove, historyFor, historyId, optGroups, optMembers, occByKey, inHistory, ruleOf, sameRule, startedBefore } from './schedule.js';
 import { uid, norm } from './util.js';
 
 export const DEFAULT_SETTINGS = {
@@ -435,14 +435,31 @@ export async function saveCommitment(input) {
     id: prev?.id || input.id || uid(), createdAt: prev?.createdAt || now, updatedAt: now,
   };
   delete c.favorite; delete c.category; // não se aplicam a compromissos
+  // mudou dias/horários de algo que já vinha acontecendo: o que já começou fica com a regra antiga
+  if (prev && prev.kind !== 'once' && !sameRule(prev, c) && startedBefore(prev, now)) {
+    c.past = [...(prev.past || []), { ...ruleOf(prev), until: now }];
+  }
   if (c.kind !== 'once') { c.start = null; c.end = null; }
-  else { c.slots = []; c.overrides = {}; }
+  else { c.slots = []; if (!c.past?.length) c.overrides = {}; }
   await commit([put('commitments', c)]);
   await runSweep();
   return c;
 }
 
-export async function deleteCommitment(id) { await commit([del('commitments', id)]); }
+/**
+ * Excluir: um compromisso recorrente que já aconteceu é só encerrado — as próximas ocorrências saem da
+ * agenda, as que já começaram continuam nela (e em Afazeres). Os outros são apagados.
+ */
+export async function deleteCommitment(id) {
+  const c = state.commitments.find((x) => x.id === id);
+  if (!c) return;
+  const now = Date.now();
+  if (!c.ended && ((c.past || []).length || (c.kind !== 'once' && startedBefore(c, now)))) { // já aconteceu (nesta ou numa versão anterior)
+    await commit([put('commitments', { ...c, past: [...(c.past || []), { ...ruleOf(c), until: now }], ended: true, endedAt: now, updatedAt: now })]);
+  } else {
+    await commit([del('commitments', id)]);
+  }
+}
 
 // ---------- ações sobre ocorrências da agenda ----------
 
@@ -468,6 +485,45 @@ function markPlaceVisitedOps(placeId, at, via) {
   const p = placeId && findPlace(placeId);
   if (!p || p.visited) return [];
   return [put('places', { ...p, visited: true, visitedAt: at, visitedVia: via, updatedAt: Date.now() })];
+}
+
+/** o local só estava "visitado" por causa deste evento/visita? então volta a não visitado */
+function unvisitOps(placeId, kind, refId) {
+  const p = placeId && findPlace(placeId);
+  if (!p?.visited || (p.visitedVia !== 'event' && p.visitedVia !== 'visit')) return [];
+  const otherDone = state.events.some((e) => e.placeId === p.id && !(kind === 'event' && e.id === refId) && e.status === 'done')
+    || state.visits.some((v) => v.placeId === p.id && !(kind === 'visit' && v.id === refId) && v.status === 'done');
+  return otherDone ? [] : [put('places', { ...p, visited: false, visitedAt: null, visitedVia: null, updatedAt: Date.now() })];
+}
+
+/**
+ * ✓ de "feito" direto na lista de eventos (com ou sem data).
+ * Desmarcar um evento cuja data já passou vira "não aconteceu" (senão a conclusão automática marcaria de novo).
+ */
+export async function setEventDone(id, done) {
+  const e = state.events.find((x) => x.id === id);
+  if (!e) return;
+  const now = Date.now();
+  const p = findPlace(e.placeId);
+  const hid = `h:event:${id}`;
+  if (done) {
+    const at = e.start != null ? Math.min(now, e.end) : now;
+    await commit([
+      put('events', { ...e, status: 'done', doneAt: at, updatedAt: now }),
+      put('history', {
+        id: hid, kind: 'event', refId: id, subKey: null, placeId: e.placeId || null, title: e.name, subtitle: p?.name || '',
+        category: e.category || p?.category || null, start: e.start ?? null, end: e.end ?? null, at, source: 'manual',
+      }),
+      ...markPlaceVisitedOps(e.placeId, at, 'event'),
+    ]);
+  } else {
+    const past = e.start != null && e.end <= now;
+    await commit([
+      put('events', { ...e, status: past ? 'missed' : 'planned', doneAt: null, updatedAt: now }),
+      del('history', hid),
+      ...unvisitOps(e.placeId, 'event', id),
+    ]);
+  }
 }
 
 /** status: 'done' | 'missed' | 'planned' */
@@ -582,14 +638,7 @@ export async function removeFromAgenda(occ) {
     if (c?.kind === 'once') ops.push(del('commitments', c.id));
     else if (c) ops.push(put('commitments', { ...c, overrides: { ...(c.overrides || {}), [occ.subKey]: { cancelled: true } }, updatedAt: now }));
   }
-  if ((occ.kind === 'event' || occ.kind === 'visit') && occ.placeId) {
-    const p = findPlace(occ.placeId);
-    if (p?.visited && (p.visitedVia === 'event' || p.visitedVia === 'visit')) {
-      const otherDone = state.events.some((e) => e.placeId === p.id && !(occ.kind === 'event' && e.id === occ.refId) && e.status === 'done')
-        || state.visits.some((v) => v.placeId === p.id && !(occ.kind === 'visit' && v.id === occ.refId) && v.status === 'done');
-      if (!otherDone) ops.push(put('places', { ...p, visited: false, visitedAt: null, visitedVia: null, updatedAt: now }));
-    }
-  }
+  if (occ.kind === 'event' || occ.kind === 'visit') ops.push(...unvisitOps(occ.placeId, occ.kind, occ.refId));
   let remaining = null;
   if (occ.opt) {
     const rest = optMembers(state, occ.opt.g, now).filter((o) => o.key !== occ.key);

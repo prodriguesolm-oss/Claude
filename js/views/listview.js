@@ -11,6 +11,8 @@ import { sortOf, chooseSort } from '../facets.js';
  * Filtros em seções (no lugar de `filters`): facets: [{ id, mode, options }], facetItems: () => itens
  * Ordenação: sorts: [[valor, rótulo, curto]] (a escolha fica guardada por aba)
  * ctx = { q, filter, sel, pass, sort, shown } — renderList pode preencher ctx.shown (quantos mostrou)
+ * titleRow?(ctx, { count, sortBtn }) -> html: troca a linha do título (ex.: alternador "Locais | Eventos")
+ * onShow?(el): chamado quando a aba aparece
  */
 export function createListView(cfg) {
   let root;
@@ -23,14 +25,14 @@ export function createListView(cfg) {
     root = el;
     setHTML(root, html`
       <header class="vh">
-        ${viewHeader(cfg.title, { right: html`<span class="vh-count" data-ref="count"></span>${cfg.sorts ? html`<span data-ref="sort"></span>` : ''}` })}
+        <div data-ref="title"></div>
         ${searchBar(cfg.placeholder)}
         <div data-ref="chips"></div>
       </header>
       <div data-ref="extra"></div>
       <div class="list" data-ref="list"></div>
       ${cfg.onAdd ? fab(cfg.addLabel || 'Adicionar') : ''}`);
-    for (const k of ['count', 'chips', 'list', 'extra', 'sort']) els[k] = $(root, k);
+    for (const k of ['title', 'chips', 'list', 'extra']) els[k] = $(root, k);
     const input = root.querySelector('input[name=q]');
     input.addEventListener('input', () => {
       q = input.value;
@@ -51,7 +53,7 @@ export function createListView(cfg) {
       if (!t) { if (cfg.onClick) cfg.onClick(e.target, e); return; }
       if (t.dataset.act === 'clear-q') { input.value = ''; q = ''; input.closest('.search').classList.remove('has'); renderList(); return; }
       if (t.dataset.act === 'clear-facets') { sel = {}; renderChips(); renderList(); return; }
-      if (t.dataset.act === 'sort' && cfg.sorts) { await chooseSort(cfg.id, cfg.sorts); return; } // salvar o ajuste já redesenha a aba
+      if (t.dataset.act === 'sort' && cfg.sorts) { if (await chooseSort(cfg.sortKey || cfg.id, cfg.sorts)) renderList(); return; }
       if (t.dataset.act === 'add' && cfg.onAdd) { cfg.onAdd(); return; }
       if (cfg.onClick && cfg.onClick(t, e)) return;
       await handleRowAction(t);
@@ -65,7 +67,7 @@ export function createListView(cfg) {
     return {
       q, filter, sel,
       pass: cfg.facets ? facetPass(cfg.facets, sel) : () => true,
-      sort: cfg.sorts ? sortOf(cfg.id, cfg.sorts) : null,
+      sort: cfg.sorts ? sortOf(cfg.sortKey || cfg.id, cfg.sorts) : null,
       filtered: !!q || facetActive(sel),
       shown: null,
     };
@@ -80,8 +82,10 @@ export function createListView(cfg) {
   function renderList() {
     const c = ctx();
     setHTML(els.list, cfg.renderList(c));
-    els.count.textContent = cfg.subtitle ? cfg.subtitle(c) : '';
-    if (cfg.sorts) setHTML(els.sort, sortButton(cfg.sorts, c.sort));
+    const count = cfg.subtitle ? cfg.subtitle(c) : '';
+    const sortBtn = cfg.sorts ? sortButton(cfg.sorts, c.sort) : '';
+    setHTML(els.title, cfg.titleRow ? cfg.titleRow(c, { count, sortBtn })
+      : viewHeader(cfg.title, { right: html`<span class="vh-count" data-ref="count">${count}</span>${sortBtn}` }));
   }
 
   function update() {
@@ -93,6 +97,7 @@ export function createListView(cfg) {
 
   return {
     id: cfg.id, mount, update,
+    onShow() { if (cfg.onShow && root) cfg.onShow(root); },
     setFilter(f) { filter = f; if (root) update(); },
   };
 }

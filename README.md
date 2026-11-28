@@ -39,12 +39,12 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
 
 | Aba | Para quê |
 |---|---|
-| **Agenda** | A principal. Junta horários avulsos, eventos, visitas a locais e compromissos numa linha do tempo do dia (ou lista das próximas 3 semanas). |
-| **Locais** | Cadastro de lugares com nome, endereço, foto e classificação (Cultura, Aventura, Bares e restaurantes, Outros). Busca por nome, vários filtros ao mesmo tempo, ordenação, ★ favorito, ♥ Date e ✓ visitado direto na lista; data da visita editável. |
-| **Eventos** | Eventos sempre ligados a um local cadastrado, com data/hora opcional, classificação, ★ favorito e ♥ Date. Eventos já feitos podem ter a data corrigida sem deixar de estar feitos. |
+| **Agenda** | A principal. Junta horários avulsos, eventos, visitas a locais e compromissos numa linha do tempo do dia (com a noite anterior e a madrugada seguinte) ou numa lista das próximas 3 semanas. |
+| **Afazeres** | O que está marcado na agenda, dia a dia, numa lista fácil de ler. Abre em **Hoje**; rolando para baixo, o que vem; para cima, o que já passou. Entram sempre as visitas a locais e os eventos com data; compromissos e horários avulsos só se tiverem **Incluir em Afazeres** ligado no cadastro (ex.: terapia sim, dormir e trabalho não). Filtros (pendentes, feitos, tipo) e ordem. |
+| **Explorar** | **Locais** e **Eventos** na mesma aba, com o alternador "Locais 77 · Eventos 12" no topo (abre em Locais). Em cada lado: busca, vários filtros ao mesmo tempo, ordenação e ★ favorito, ♥ Date e ✓ visitado/feito em coluna à direita de cada linha. Por padrão a lista vem separada em **Não visitados** e **Visitados**. |
 | **Compromissos** | Lista da sua rotina, agrupada por frequência: **diário**, **semanal**, **mensal** ou **único**. |
+| **Histórico** | Locais visitados e eventos feitos, com a foto do local; o botão **ⓘ** de cada linha mostra quando e como foi marcado (por você, automático ou importado). Um mesmo local aparece uma vez só por dia. Filtros (tipo, ★, ♥, categoria) e ordenação. Compromissos e horários avulsos não entram. |
 | **Favoritos** | Locais e eventos marcados com ★, com filtro por tipo, e o filtro **♥ Date** com todos os locais e eventos marcados como Date. |
-| **Histórico** | Locais visitados e eventos feitos, com data, horário e a foto do local; filtros (tipo, ★, ♥, categoria) e ordenação. Compromissos e horários avulsos não entram. |
 
 ### Agenda
 - **Cores pela classificação**: Aventura em verde, Cultura em amarelo, Bares e restaurantes em vermelho,
@@ -74,7 +74,13 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
 - **Deslizar um bloco para a esquerda** tira da agenda (dá para voltar com ↶). Se era algo **que já tinha acontecido**,
   também sai do Histórico e o app pergunta **o que você fez nesse horário** (horário avulso, local, evento ou
   compromisso) para o Histórico ficar certo. Um local que só estava "visitado" por causa dele volta a não visitado.
+- **Virada da meia-noite**: cada dia mostra também a **noite anterior (desde 18:00)** e a **madrugada seguinte
+  (até 06:00)**, num tom mais escuro. Dá para arrastar algo para atravessar a meia-noite sem trocar de dia — ex.:
+  "Dormir" das 00:00 do dia 28 puxado para começar 23:00 do dia 27, ou um bar das 23:00 às 02:00.
 - **Deslizar para os lados fora dos blocos** troca de dia (na faixa da semana, troca de semana). Tocar no mês abre o calendário.
+- **Editar um compromisso** (na aba Compromissos) só muda as ocorrências que **ainda não começaram**: as que já
+  aconteceram — e a de hoje, se estiver em andamento — ficam como estavam. **Excluir** um compromisso que já
+  aconteceu tira só as próximas ocorrências; o passado continua na agenda (e em Afazeres).
 - **Compromissos recorrentes** (diários, semanais, mensais): alterar uma ocorrência (ex.: adiar a terapia de
   amanhã em 24 h) vale **só para aquela vez**. As outras continuam no horário de sempre, e nenhum compromisso
   duplicado é criado. Dá para "voltar ao horário de sempre" a qualquer momento.
@@ -91,20 +97,25 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
   **adiantar tudo o que vem depois** naquele dia (o × some com ele). Tocar num horário vazio antes de um item
   também oferece adiantá-lo, e **Terminei agora** (na ficha de algo em andamento) encerra o item e mostra o mesmo botão.
 
-### Filtros e ordenação (Locais, escolha de local e Histórico)
+### Filtros e ordenação (Locais, Eventos, escolha de local, Histórico e Afazeres)
 - Os filtros ficam **numa linha só** e dá para **ligar vários ao mesmo tempo**; tocar de novo num filtro tira só
   ele, e **Limpar** (no começo da linha) tira todos. Como eles se combinam:
   - filtros de tipos diferentes se somam — ex.: *Cultura* + *★ Favoritos* = favoritos de cultura;
   - *★ Favoritos* + *♥ Date* = só o que é favorito **e** date;
   - duas categorias (ex.: *Cultura* + *Aventura*) mostram as duas; o mesmo vale para *Visitados* + *Não visitados*
     (e, no Histórico, *Locais* + *Eventos*).
-  - Locais (e a escolha de local ao agendar): *Não visitados*, *Visitados* · *★ Favoritos*, *♥ Date* · categorias.
+  - Locais (e a escolha de local ao agendar) e Eventos: *Não visitados*, *Visitados* · *★ Favoritos*, *♥ Date* · categorias
+    (em eventos, "visitado" = feito).
   - Histórico: *Locais*, *Eventos* · *★ Favoritos*, *♥ Date* · categorias.
   - O número em cada filtro já diz quantos sobram se você tocar nele.
-- O botão **⇅** no canto de cima ordena a lista e a escolha fica guardada (cada aba tem a sua):
-  - Locais: nome (A–Z), adicionados recentemente / há mais tempo, visitados recentemente, próximos na agenda,
-    por categoria;
-  - Histórico: mais recentes, mais antigos, nome (A–Z), por categoria.
+- O botão **⇅** no canto de cima ordena a lista. A escolha vale enquanto o app está aberto (trocar de aba mantém);
+  ao abrir o app de novo, cada lista volta à ordem padrão:
+  - Locais: **padrão = Não visitados, depois Visitados**; ou nome (A–Z), adicionados recentemente / há mais tempo,
+    visitados recentemente, próximos na agenda, por categoria (escolher uma delas tira a separação);
+  - Eventos: **padrão = Não visitados, depois Visitados**; ou por data (próximos, sem data, passados — a separação
+    antiga), nome, adicionados recentemente / há mais tempo, feitos recentemente, por categoria;
+  - Histórico: mais recentes, mais antigos, nome (A–Z), por categoria;
+  - Afazeres: data do mais próximo ao mais distante, ou o contrário.
 
 ### Notificações
 - Em qualquer item com horário (evento, visita a local, horário avulso, compromisso), toque no **sino**
@@ -116,7 +127,8 @@ ou arrastar a pasta do projeto para o [Netlify Drop](https://app.netlify.com/dro
   Ele guarda só o título e o horário dos avisos ligados.
 
 ### Conclusão automática e histórico
-- Marcar um local como **visitado** (✓) registra no histórico.
+- Marcar um local como **visitado** (✓) — ou um evento como **feito** (✓ na aba Explorar → Eventos) — registra no histórico.
+  Desmarcar um evento cuja data já passou o deixa como "não aconteceu".
 - Eventos, visitas a locais e horários avulsos cujo horário **passou sem alteração** são marcados como
   **feitos** automaticamente; eventos e visitas vão também para o histórico. O local de um evento/visita
   concluído passa a constar como visitado.
@@ -162,6 +174,7 @@ node tests/e2e.cjs               # teste de ponta a ponta num iPhone emulado (re
 node tests/agenda-drag.cjs       # arrastar na agenda (gestos de toque simulados)
 node tests/agenda-reorg.cjs      # Plano B, deslizar, perguntar ao sobrepor, adiantar, desfazer/refazer
 node tests/lists-filters.cjs     # filtros múltiplos e ordenação (Locais, escolha de local, Histórico)
+node tests/explore-todos.cjs     # Explorar, Afazeres, Histórico (ⓘ), ✓ em eventos, editar compromisso, meia-noite
 ```
 
 Estrutura:
@@ -173,7 +186,7 @@ js/schedule.js                            lógica pura: recorrência, exceções
 js/store.js, js/db.js                     estado, ações e persistência (IndexedDB + cópia local)
 js/forms.js, js/sheets.js                 formulários, escolhas com filtros e fichas
 js/conflicts.js, js/reorg.js              perguntar ao sobrepor; Plano B, tirar da agenda, adiantar, terminar agora
-js/views/                                 abas
+js/views/                                 abas (explore.js = Locais | Eventos; todos.js = Afazeres)
 js/push.js                                inscrição e sincronização dos avisos com o servidor
 server/                                   servidor de notificações (Cloudflare Worker) — ver server/README.md
 tests/                                    testes

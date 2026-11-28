@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   expand, commitmentOccs, occByKey, findConflicts, planPushExisting, planPushNew,
-  applyMove, sweep, layoutColumns, nextOccurrence, historyId,
+  applyMove, sweep, layoutColumns, nextOccurrence, historyId, ruleOf, sameRule, startedBefore,
 } from '../js/schedule.js';
 import { atMinutes, addDays, dateKey, MIN, HOUR, DAY } from '../js/time.js';
 
@@ -376,4 +376,73 @@ test('cores: classificação do evento, senão a do local; compromisso e avulso 
   const c = Object.fromEntries(occs.map((o) => [o.key.split(':').slice(0, 2).join(':'), colorOf(o)]));
   assert.equal(c['event:e1'], 'bares'); assert.equal(c['event:e2'], 'cultura'); assert.equal(c['visit:v1'], 'none');
   assert.equal(c['item:i1'], 'item'); assert.equal(c['commitment:c1'], 'commitment');
+});
+
+// ---------- editar / excluir compromisso só muda o que ainda não começou ----------
+
+// simula o que o app faz ao salvar uma regra nova (store.saveCommitment) num instante `now`
+const editRule = (c, patch, now) => {
+  const next = { ...c, ...patch };
+  if (!sameRule(c, next) && startedBefore(c, now)) next.past = [...(c.past || []), { ...ruleOf(c), until: now }];
+  return next;
+};
+const tueTimes = (c, now, weeks = 3) => commitmentOccs(c, T('2026-11-16', '00:00'), addDays(T('2026-11-16', '00:00'), 7 * weeks), now)
+  .filter((o) => o.slotId === 's1').map((o) => `${dateKey(o.start)} ${String(new Date(o.start).getHours()).padStart(2, '0')}:${String(new Date(o.start).getMinutes()).padStart(2, '0')}`);
+
+test('mudar o horário de um compromisso não mexe nas ocorrências que já aconteceram', () => {
+  const c = therapy();
+  const now = T('2026-11-20', '12:00'); // sexta: a terça 17 já passou
+  const edited = editRule(c, { slots: [{ ...c.slots[0], startMin: 11 * 60, endMin: 12 * 60 }, c.slots[1]] }, now);
+  assert.equal(edited.past.length, 1);
+  assert.deepEqual(tueTimes(edited, now), ['2026-11-17 10:00', '2026-11-24 11:00', '2026-12-01 11:00']);
+});
+
+test('mudar enquanto a ocorrência de hoje está em andamento: a de hoje fica como estava', () => {
+  const c = therapy();
+  const now = T(TUE, '10:30'); // terapia de terça 10–11 em andamento
+  const edited = editRule(c, { slots: [{ ...c.slots[0], startMin: 11 * 60, endMin: 12 * 60 }, c.slots[1]] }, now);
+  assert.deepEqual(tueTimes(edited, now), ['2026-11-17 10:00', '2026-11-24 11:00', '2026-12-01 11:00']);
+  const today = commitmentOccs(edited, T(TUE, '00:00'), T('2026-11-18', '00:00'), now).filter((o) => o.slotId === 's1');
+  assert.equal(today.length, 1); // não duplica
+});
+
+test('mudar antes de começar: a de hoje já muda', () => {
+  const c = therapy();
+  const now = T(TUE, '08:00');
+  const edited = editRule(c, { slots: [{ ...c.slots[0], startMin: 11 * 60, endMin: 12 * 60 }, c.slots[1]] }, now);
+  assert.deepEqual(tueTimes(edited, now), ['2026-11-17 11:00', '2026-11-24 11:00', '2026-12-01 11:00']);
+});
+
+test('mudar o dia da semana: as terças passadas continuam, daí em diante é quinta', () => {
+  const c = therapy();
+  const now = T('2026-11-18', '12:00'); // quarta
+  const edited = editRule(c, { slots: [{ ...c.slots[0], days: [4] }, c.slots[1]] }, now);
+  const s1 = commitmentOccs(edited, T(MON, '00:00'), addDays(T(MON, '00:00'), 14), now).filter((o) => o.slotId === 's1').map((o) => dateKey(o.start));
+  assert.deepEqual(s1, ['2026-11-17', '2026-11-19', '2026-11-26']);
+  // a ocorrência passada continua achável (ficha da agenda)
+  assert.equal(new Date(occByKey({ ...emptyState(), commitments: [edited] }, `commitment:c1:s1|${TUE}`, now).start).getHours(), 10);
+});
+
+test('excluir um compromisso que já aconteceu: o passado continua, o futuro sai', () => {
+  const c = therapy();
+  const now = T('2026-11-20', '12:00');
+  const ended = { ...c, past: [{ ...ruleOf(c), until: now }], ended: true };
+  assert.deepEqual(tueTimes(ended, now), ['2026-11-17 10:00']);
+  assert.equal(nextOccurrence(ended, now), null);
+  assert.equal(startedBefore(therapy(), T('2026-11-14', '07:00')), false); // antes da 1ª ocorrência: dá para apagar de vez
+});
+
+test('renomear (sem mudar horários) não cria versão', () => {
+  const c = therapy();
+  const edited = editRule(c, { name: 'Terapia (Dra. Ana)' }, T('2026-11-20', '12:00'));
+  assert.equal(edited.past, undefined);
+});
+
+test('editar e depois excluir: o passado (da regra antiga) continua', () => {
+  const c = therapy();
+  const t1 = T('2026-11-20', '12:00');
+  const edited = editRule(c, { slots: [{ ...c.slots[0], startMin: 14 * 60, endMin: 15 * 60 }, c.slots[1]] }, t1);
+  // o app encerra (não apaga) quando há versões anteriores — mesmo que a regra nova ainda não tenha acontecido
+  const ended = { ...edited, past: [...edited.past, { ...ruleOf(edited), until: t1 + 60e3 }], ended: true };
+  assert.deepEqual(tueTimes(ended, t1 + 120e3), ['2026-11-17 10:00']);
 });

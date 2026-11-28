@@ -1,6 +1,6 @@
 // Linhas de lista compartilhadas entre as abas + ações comuns (favoritar, visitado, abrir).
 import { html, ic, toast } from './ui.js';
-import { state, toggleFavorite, toggleDate, setPlaceVisited } from './store.js';
+import { state, toggleFavorite, toggleDate, setPlaceVisited, setEventDone } from './store.js';
 import { placeThumb, catBadge, starBtn, dateBtn } from './widgets.js';
 import { dayLabel, fmtHM, fmtRange, MONTHS_SHORT, WD_CAP, fmtMin, fmtDateShort, dateKey, parseDateKey } from './time.js';
 import { nextOccurrence, FREQ_LABEL, colorOf } from './schedule.js';
@@ -30,7 +30,7 @@ export function placeRow(p, upcoming) {
       ${p.address ? html`<div class="row-sub">${p.address}</div>` : ''}
       <div class="row-meta">${catBadge(p.category)}${p.visited ? html`<span class="badge ok">${ic('check', 'i xs')} Visitado${p.visitedAt ? ` · ${fmtDateShort(p.visitedAt)}` : ''}</span>` : ''}${upcoming ? html`<span class="badge info">${ic('calendar', 'i xs')} ${dayLabel(upcoming.start)} ${fmtHM(upcoming.start)}</span>` : ''}</div>
     </div>
-    <div class="tgls">
+    <div class="tgls v">
       ${starBtn('place', p)}
       ${dateBtn('place', p)}
       <button type="button" class="tgl check ${p.visited ? 'on' : ''}" data-act="visited" data-id="${p.id}" aria-label="${p.visited ? 'Desmarcar visitado' : 'Marcar como visitado'}" aria-pressed="${p.visited ? 'true' : 'false'}">${ic(p.visited ? 'checkCircleFill' : 'checkCircle')}</button>
@@ -41,19 +41,18 @@ export function placeRow(p, upcoming) {
 export function eventRow(e, now = Date.now()) {
   const p = state.places.find((x) => x.id === e.placeId);
   const sched = e.start != null;
-  const d = sched ? new Date(e.start) : null;
   const done = e.status === 'done' || (sched && e.end <= now && e.status !== 'missed');
   const live = sched && !done && e.start <= now && e.end > now;
   return html`<div class="row" data-act="open-event" data-id="${e.id}" role="button" tabindex="0">
-    <div class="datebadge ${sched ? '' : 'none'} ${done ? 'done' : ''}">${sched
-      ? html`<span class="m">${MONTHS_SHORT[d.getMonth()]}</span><span class="d">${d.getDate()}</span>`
-      : html`<span class="m">sem</span><span class="d sm">data</span>`}</div>
+    ${p ? placeThumb(p) : html`<span class="thumb ph empty-ph">${ic('ticket', 'i sm')}</span>`}
     <div class="row-main">
       <div class="row-title">${e.name}</div>
       <div class="row-sub">${ic('pin', 'i xs')} ${p?.name || 'Local removido'}</div>
-      <div class="row-meta">${sched ? html`<span class="badge">${dayLabel(e.start, now)} · ${fmtRange(e.start, e.end)}</span>` : ''}${catBadge(e.category)}${done ? html`<span class="badge ok">${ic('check', 'i xs')} Feito</span>` : ''}${e.status === 'missed' ? html`<span class="badge">Não aconteceu</span>` : ''}${live ? html`<span class="badge live">Agora</span>` : ''}</div>
+      <div class="row-meta">${sched ? html`<span class="badge ${done ? '' : 'info'}">${ic('calendar', 'i xs')} ${dayLabel(e.start, now)}${dayLabel(e.start, now).includes(',') ? '' : `, ${new Date(e.start).getDate()} ${MONTHS_SHORT[new Date(e.start).getMonth()]}`} · ${fmtHM(e.start)}</span>` : html`<span class="badge">sem data</span>`}${catBadge(e.category || p?.category)}${e.status === 'missed' ? html`<span class="badge">Não aconteceu</span>` : ''}${live ? html`<span class="badge live">Agora</span>` : ''}</div>
     </div>
-    <div class="tgls">${starBtn('event', e)}${dateBtn('event', e)}</div>
+    <div class="tgls v">${starBtn('event', e)}${dateBtn('event', e)}
+      <button type="button" class="tgl check ${done ? 'on' : ''}" data-act="event-done" data-id="${e.id}" aria-label="${done ? 'Desmarcar feito' : 'Marcar como feito'}" aria-pressed="${done ? 'true' : 'false'}">${ic(done ? 'checkCircleFill' : 'checkCircle')}</button>
+    </div>
   </div>`;
 }
 
@@ -136,6 +135,14 @@ export async function handleRowAction(t) {
       const p = state.places.find((x) => x.id === id);
       if (!p) return true;
       await setPlaceVisited(id, !p.visited);
+      haptic();
+      return true;
+    }
+    case 'event-done': {
+      const e = state.events.find((x) => x.id === id);
+      if (!e) return true;
+      const done = e.status === 'done' || (e.start != null && e.end <= Date.now() && e.status !== 'missed');
+      await setEventDone(id, !done);
       haptic();
       return true;
     }

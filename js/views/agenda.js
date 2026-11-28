@@ -19,6 +19,10 @@ import {
 } from '../time.js';
 
 const PX = 1; // pixels por minuto (60px por hora)
+// a linha do tempo de um dia também mostra a noite anterior (desde 18:00) e a madrugada seguinte (até 06:00):
+// assim dá para arrastar algo que atravessa a meia-noite (dormir 23h–8h30, bar 23h–2h) sem trocar de dia
+const EXT_B = 6 * 60; // minutos antes de 00:00
+const EXT_A = 6 * 60; // minutos depois de 24:00
 const SNAP = 15; // minutos
 const TAP_WAIT = 300; // ms para distinguir toque simples de toque triplo
 
@@ -134,7 +138,7 @@ export function createAgendaView() {
       if (deselect()) return; // tocar fora só tira a seleção
       const r = tl.getBoundingClientRect();
       const min = Math.floor((e.clientY - r.top) / PX / SNAP) * SNAP;
-      if (min < 0 || min >= 1440) return;
+      if (min < -EXT_B || min >= 1440 + EXT_A) return; // vale também a noite anterior e a madrugada seguinte
       showGhost(tl, min);
       const at = atMinutes(dateKey(selected), min);
       openAddChooser(at, { gap: gapAt(at) });
@@ -270,9 +274,12 @@ export function createAgendaView() {
     const now = Date.now();
     const ds = selected;
     const de = addDays(ds, 1);
-    const occs = expand(state, ds, de, now);
-    const items = layoutColumns(occs.map((o) => ({ o, s: Math.max(o.start, ds), e: Math.min(o.end, de) })));
-    const conflicts = items.filter((i) => i.conflict).length;
+    const vs = ds - EXT_B * MIN; // começo do que aparece (18:00 do dia anterior)
+    const ve = de + EXT_A * MIN; // fim do que aparece (06:00 do dia seguinte)
+    const shown = expand(state, vs, ve, now);
+    const occs = shown.filter((o) => o.start < de && o.end > ds); // as do dia escolhido (contagens, "dia livre")
+    const items = layoutColumns(shown.map((o) => ({ o, s: Math.max(o.start, vs), e: Math.min(o.end, ve) })));
+    const conflicts = items.filter((i) => i.conflict && i.o.start < de && i.o.end > ds).length;
     const active = occs.filter((o) => o.status !== 'missed').length;
     const toChoose = new Set(occs.filter((o) => o.status === 'choose').map((o) => o.opt?.g)).size;
     const dd = new Date(ds);
@@ -284,10 +291,17 @@ export function createAgendaView() {
     const y = (t) => ((t - ds) / MIN) * PX;
     const total = ((de - ds) / MIN) * PX;
     const hours = [];
-    for (let h = 0; h <= 24; h++) hours.push(html`<div class="tl-hour" style="top:${h * 60 * PX}px"><span>${h < 24 ? `${pad(h)}:00` : ''}</span></div>`);
+    for (let h = -EXT_B / 60; h <= 24 + EXT_A / 60; h++) {
+      const ext = h < 0 || h > 24;
+      hours.push(html`<div class="tl-hour ${ext ? 'ext' : ''} ${h === 0 || h === 24 ? 'midnight' : ''}" style="top:${h * 60 * PX}px"><span>${h === 24 + EXT_A / 60 ? '' : `${pad((h + 24) % 24)}:00`}</span></div>`);
+    }
+    const dayName = (t) => { const d = new Date(t); return `${WD_LONG[d.getDay()].split('-')[0]}, ${d.getDate()}`; };
+    const zones = html`<div class="tl-ext" style="top:${-EXT_B * PX}px;height:${EXT_B * PX}px"><span>${dayName(addDays(ds, -1))} · noite</span></div>
+      <div class="tl-ext" style="top:${total}px;height:${EXT_A * PX}px"><span>${dayName(de)} · madrugada</span></div>`;
 
     const blocks = items.map((it) => {
       const o = it.o;
+      const outside = o.end <= ds || o.start >= de; // só na noite anterior / madrugada seguinte
       const top = y(it.s);
       const h = Math.max(24, y(it.e) - top - 2);
       const compact = h < 44;
@@ -296,15 +310,15 @@ export function createAgendaView() {
       const sub = o.status === 'choose' ? 'Qual você fez? Deslize ← a que não fez'
         : o.kind === 'event' ? o.subtitle : o.kind === 'visit' ? 'Visita' : o.kind === 'item' ? o.subtitle : o.recurring ? (FREQ_LABEL[o.freq] || '') : '';
       const isOpt = o.opt && o.opt.of > 1;
-      return html`<div class="tl-b c-${colorOf(o)} k-${o.kind} st-${o.status} ${it.conflict ? 'conflict' : ''} ${compact ? 'compact' : ''} ${isOpt ? 'is-opt' : ''}" data-key="${o.key}" data-start="${o.start}" data-end="${o.end}" data-cs="${o.start < ds ? 1 : 0}" data-ce="${o.end > de ? 1 : 0}" style="top:${top}px;height:${h}px;left:${left};width:${width}">
+      return html`<div class="tl-b c-${colorOf(o)} k-${o.kind} st-${o.status} ${it.conflict ? 'conflict' : ''} ${compact ? 'compact' : ''} ${isOpt ? 'is-opt' : ''} ${outside ? 'ext-b' : ''}" data-key="${o.key}" data-start="${o.start}" data-end="${o.end}" data-cs="${o.start < vs ? 1 : 0}" data-ce="${o.end > ve ? 1 : 0}" style="top:${top}px;height:${h}px;left:${left};width:${width}">
         <div class="tl-b-t">${isOpt ? html`<span class="opt-tag">${o.opt.letter}</span>` : ''}${it.conflict ? ic('alert', 'i xxs warn-ic') : ''}${o.status === 'done' ? ic('check', 'i xxs') : ''}${o.remind != null && (o.status === 'planned' || o.status === 'ongoing') ? ic('bell', 'i xxs bell-ic') : ''}${o.title}${compact ? html`<span class="tl-b-inline"> · ${fmtHM(o.start)}</span>` : ''}</div>
         ${compact ? '' : html`<div class="tl-b-s">${fmtRange(o.start, o.end)}${sub ? ` · ${sub}` : ''}</div>`}
         ${o.recurring ? html`<span class="tl-b-rep">${ic('repeat', 'i xxs')}</span>` : ''}
-        ${compact || o.end > de ? '' : html`<span class="tl-grip"></span>`}
+        ${compact || o.end > ve ? '' : html`<span class="tl-grip"></span>`}
       </div>`;
     });
 
-    const nowLine = now >= ds && now < de ? html`<div class="tl-now" style="top:${y(now)}px"><span>${fmtHM(now)}</span></div>` : '';
+    const nowLine = now >= vs && now < ve ? html`<div class="tl-now" style="top:${y(now)}px"><span>${fmtHM(now)}</span></div>` : '';
 
     // depois de encurtar algo: botão "Adiantar" dentro do espaço que ficou livre (some ao usar, fechar ou trocar de dia)
     let gapBtn = '';
@@ -323,7 +337,7 @@ export function createAgendaView() {
 
     setHTML(els.body, html`
       ${occs.length ? '' : html`<div class="day-empty">${ic('sparkle', 'i sm')} Dia livre. Toque num horário ou no <b>+</b> para adicionar.</div>`}
-      <div class="tl" style="height:${total + 10}px">${hours}${blocks}${nowLine}${gapBtn}</div>`);
+      <div class="tl" style="margin-top:${EXT_B * PX + 14}px;height:${total + EXT_A * PX + 10}px">${zones}${hours}${blocks}${nowLine}${gapBtn}</div>`);
     syncSelection();
   }
 
@@ -425,18 +439,19 @@ export function createAgendaView() {
       if (p.kind === 'swipe') { paintSwipe(); return; }
       const raw = (p.lastY - tlTop() - p.yTl0) / PX; // minutos desde o início do gesto (acompanha a rolagem)
       const ds = selected;
-      const de = addDays(selected, 1);
+      const vs = ds - EXT_B * MIN; // dá para levar até a noite anterior / madrugada seguinte
+      const ve = addDays(selected, 1) + EXT_A * MIN;
       const step = SNAP * MIN;
       let ns = p.s0;
       let ne = p.e0;
       if (Math.abs(raw) >= SNAP / 2) {
         if (p.kind === 'move') {
-          ns = Math.min(Math.max(snapAbs(p.s0 + raw * MIN), ds), de - step);
+          ns = Math.min(Math.max(snapAbs(p.s0 + raw * MIN), vs), ve - step);
           ne = ns + (p.e0 - p.s0);
         } else if (p.kind === 'end') {
-          ne = Math.min(Math.max(snapAbs(p.e0 + raw * MIN), p.s0 + step), de);
+          ne = Math.min(Math.max(snapAbs(p.e0 + raw * MIN), p.s0 + step), ve);
         } else {
-          ns = Math.max(Math.min(snapAbs(p.s0 + raw * MIN), p.e0 - step), ds);
+          ns = Math.max(Math.min(snapAbs(p.s0 + raw * MIN), p.e0 - step), vs);
         }
       }
       p.ns = ns;
@@ -444,8 +459,8 @@ export function createAgendaView() {
       if (p.kind === 'move') {
         p.el.style.transform = `translateY(${((ns - p.s0) / MIN) * PX}px)`;
       } else {
-        const top = ((Math.max(ns, ds) - ds) / MIN) * PX;
-        const h = Math.max(14, ((Math.min(ne, de) - ds) / MIN) * PX - top - 2);
+        const top = ((Math.max(ns, vs) - ds) / MIN) * PX;
+        const h = Math.max(14, ((Math.min(ne, ve) - ds) / MIN) * PX - top - 2);
         p.el.style.top = `${top}px`;
         p.el.style.height = `${h}px`;
         p.el.classList.toggle('tiny', h < 40);

@@ -21,7 +21,12 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   const wait = (ms) => page.waitForTimeout(ms);
   const shot = (n) => page.screenshot({ path: path.join(SHOTS, `filtros-${n}.png`) });
-  const tab = async (id) => { await page.click(`.tab[data-tab="${id}"]`); await wait(300); };
+  const tab = async (id) => { // Locais e Eventos ficam na aba Explorar (alternador no topo)
+    if (id === 'places' || id === 'events') {
+      await page.click('.tab[data-tab="explore"]'); await wait(250);
+      await page.click(`[data-act=side][data-side=${id}]:visible`); await wait(200);
+    } else { await page.click(`.tab[data-tab="${id}"]`); await wait(300); }
+  };
   const view = (id) => page.locator(`[data-view=${id}]`);
   const chip = (id, v) => view(id).locator(`[data-chip="${v}"]`);
   const chipN = async (id, v) => Number(await chip(id, v).locator('small').innerText());
@@ -67,7 +72,7 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
   assert(J(counts) === J({ todo: 3, visited: 4, fav: 4, date: 3, cultura: 2, aventura: 2, bares: 2, outros: 1 }), `contagens ${J(counts)}`);
   await chip('places', 'todo').click(); await wait(200);
   assert(J(await placeNames()) === J(['Confeitaria Colombo', 'Feira da Glória', 'Mirante Dona Marta']), 'Não visitados');
-  assert((await view('places').locator('[data-ref=count]').innerText()) === '3 de 7', 'contador "3 de 7"');
+  assert((await view('places').locator('.seg2-btn.on small').innerText()) === '3 de 7', 'contador "3 de 7" no alternador Locais | Eventos');
   assert(await chipN('places', 'fav') === 2 && await chipN('places', 'date') === 1, 'contagens dos outros filtros já consideram "não visitados"');
   assert(await view('places').locator('.facets > :first-child').getAttribute('data-act') === 'clear-facets', '"Limpar" aparece no começo da linha');
   await chip('places', 'visited').click(); await wait(200);
@@ -104,16 +109,20 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
 
   // ---------- 2) Locais: ordenar ----------
   console.log('Locais — ordenar');
-  assert((await view('places').locator('.sort-btn').innerText()).trim() === 'A–Z', 'ordem padrão: nome (A–Z)');
+  assert((await view('places').locator('.sort-btn').innerText()).trim() === 'Padrão', 'ordem padrão');
+  assert(J(await view('places').locator('.sec-h span').allTextContents()) === J(['Não visitados', 'Visitados']), 'por padrão: blocos "Não visitados" e depois "Visitados"');
   await view('places').locator('.sort-btn').click(); await wait(400);
   const sortOpts = await page.locator('.as-wrap.open .as-btn:not(.as-cancel)').allInnerTexts();
-  assert(sortOpts.length === 6 && /✓ Nome \(A–Z\)/.test(sortOpts[0]), `menu "Ordenar por" (${sortOpts.join(' | ')})`);
+  assert(sortOpts.length === 7 && /✓ Padrão/.test(sortOpts[0]), `menu "Ordenar por" (${sortOpts.join(' | ')})`);
   await shot('02-ordenar');
   await asBtn('Adicionados recentemente').click(); await wait(500);
   assert(J((await placeNames()).slice(0, 3)) === J(['Confeitaria Colombo', 'Feira da Glória', 'Mirante Dona Marta']), 'Adicionados recentemente: o último cadastrado primeiro');
+  assert(await view('places').locator('.sec-h').count() === 0, 'escolher uma ordem tira a separação visitados / não visitados');
+  await tab('history'); await tab('places');
+  assert((await view('places').locator('.sort-btn').innerText()).trim() === 'Recentes' && (await placeNames())[0] === 'Confeitaria Colombo', 'trocar de aba mantém a ordem escolhida');
   await page.reload({ waitUntil: 'networkidle' }); await wait(500);
   await tab('places');
-  assert((await view('places').locator('.sort-btn').innerText()).trim() === 'Recentes' && (await placeNames())[0] === 'Confeitaria Colombo', 'a ordem escolhida fica guardada');
+  assert((await view('places').locator('.sort-btn').innerText()).trim() === 'Padrão' && await view('places').locator('.sec-h').count() === 2, 'ao abrir o app de novo, volta ao padrão (não visitados / visitados)');
   await view('places').locator('.sort-btn').click(); await wait(400);
   await asBtn('Visitados recentemente').click(); await wait(500);
   assert(J((await placeNames()).slice(0, 4)) === J(['Trilha Pedra Bonita', 'Theatro Municipal', 'Museu do Amanhã', 'Bar Astor']), 'Visitados recentemente: trilha (hoje), theatro e museu (anteontem), bar (há 5 dias)');
@@ -195,9 +204,9 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
   await shot('06-historico-categoria');
   await page.reload({ waitUntil: 'networkidle' }); await wait(500);
   await tab('history');
-  assert((await view('history').locator('.sort-btn').innerText()).trim() === 'Categoria', 'ordem do Histórico guardada (separada da de Locais)');
+  assert((await view('history').locator('.sort-btn').innerText()).trim() === 'Recentes', 'ao abrir o app de novo, o Histórico volta a "mais recentes"');
   await tab('places');
-  assert((await view('places').locator('.sort-btn').innerText()).trim() === 'A–Z', 'Locais continua em A–Z');
+  assert((await view('places').locator('.sort-btn').innerText()).trim() === 'Padrão', 'e Locais volta ao padrão');
 
   console.log('\nCapturas em:', SHOTS);
   console.log('ERROS DE CONSOLE:', errors.length ? errors.join('\n') : 'nenhum');

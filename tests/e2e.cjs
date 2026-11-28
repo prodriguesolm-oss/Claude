@@ -21,7 +21,13 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
   const shot = (n) => page.screenshot({ path: path.join(SHOTS, `e2e-${n}.png`) });
   const sheet = () => page.locator('.sheet-wrap.open').last();
-  const tab = (id) => page.click(`.tab[data-tab="${id}"]`);
+  // Locais e Eventos agora ficam na aba Explorar (alternador no topo)
+  const tab = async (id) => {
+    if (id === 'places' || id === 'events') {
+      await page.click('.tab[data-tab="explore"]'); await page.waitForTimeout(250);
+      await page.click(`[data-act=side][data-side=${id}]:visible`); await page.waitForTimeout(150);
+    } else await page.click(`.tab[data-tab="${id}"]`);
+  };
   const save = async () => { await sheet().locator('[data-sheet="right"]').click(); await page.waitForTimeout(450); };
   const view = (id) => page.locator(`[data-view="${id}"]`);
   const goDay = async (d) => { await page.locator('[data-ref=jump]').fill(dk(d)); await page.waitForTimeout(350); };
@@ -182,7 +188,7 @@ function assert(c, m) { if (!c) throw new Error('ASSERT: ' + m); console.log('  
   console.log('   blocos terça:', blocksTue.map(t => t.replace(/\n/g,' | ')));
   assert(blocksTue.some(t => t.includes('Terapia')), 'Terapia aparece na terça');
   assert(blocksTue.some(t => t.includes('Ópera')), 'Ópera aparece na terça');
-  await view('agenda').evaluate(el => el.scrollTop = 560);
+  await view('agenda').evaluate(el => el.scrollTop = 920);
   await shot('10-agenda-tuesday');
 
   // adiar a terapia desta terça em +1 dia

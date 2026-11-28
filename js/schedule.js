@@ -151,33 +151,74 @@ export function commitmentOccs(c, from, to, now, groups) {
         favorite: false, start: c.start, end: c.end, status: derive(c.status, c.start, c.end, now, multi), recurring: false, remind: c.remind ?? null, opt,
       });
     }
-    return out;
+    if (!(c.past || []).length) return out; // virou único depois de já ter sido recorrente: o passado continua
   }
-  const slots = c.slots || [];
-  if (!slots.length) return out;
   const ov = c.overrides || {};
-  // 1) ocorrências no horário padrão (as que têm horário próprio vêm no passo 2)
-  for (let d = addDays(startOfDay(from), -1); d < to; d = addDays(d, 1)) {
-    const dk = dateKey(d);
-    for (const slot of slots) {
-      if (!slotMatches(c, slot, dk)) continue;
-      const o = ov[occKeyOf(slot.id, dk)];
-      if (o && (o.cancelled || o.start != null)) continue;
-      const start = atMinutes(dk, slot.startMin);
-      const end = start + slotDurMin(slot) * MIN;
-      if (start < to && end > from) out.push(recurringOcc(c, slot, dk, start, end, o, now, groups));
+  const seen = new Set(); // uma ocorrência (horário + dia) só vem de uma versão da regra
+  for (const seg of ruleSegments(c)) {
+    if (seg.rule === c && c.kind === 'once') continue;
+    const rc = seg.rule === c ? c : { ...c, ...seg.rule };
+    const slots = rc.slots || [];
+    if (!slots.length) continue;
+    const inSeg = (slot, dk) => { const o0 = atMinutes(dk, slot.startMin); return o0 >= seg.lo && o0 < seg.hi; };
+    const found = [];
+    // 1) ocorrências no horário padrão (as que têm horário próprio vêm no passo 2)
+    for (let d = addDays(startOfDay(Math.max(from, seg.lo - DAY)), -1); d < to && d < seg.hi + DAY; d = addDays(d, 1)) {
+      const dk = dateKey(d);
+      for (const slot of slots) {
+        if (!slotMatches(rc, slot, dk) || !inSeg(slot, dk)) continue;
+        const o = ov[occKeyOf(slot.id, dk)];
+        if (o && (o.cancelled || o.start != null)) continue;
+        const start = atMinutes(dk, slot.startMin);
+        const end = start + slotDurMin(slot) * MIN;
+        if (start < to && end > from) found.push(recurringOcc(rc, slot, dk, start, end, o, now, groups));
+      }
     }
-  }
-  // 2) ocorrências remarcadas (podem ter ido para outro dia)
-  for (const [k, o] of Object.entries(ov)) {
-    if (!o || o.cancelled || o.start == null || o.end == null) continue;
-    if (!(o.start < to && o.end > from)) continue;
-    const [slotId, dk] = k.split('|');
-    const slot = slots.find((s) => s.id === slotId);
-    if (!slot || !slotMatches(c, slot, dk)) continue;
-    out.push(recurringOcc(c, slot, dk, o.start, o.end, o, now, groups));
+    // 2) ocorrências remarcadas (podem ter ido para outro dia)
+    for (const [k, o] of Object.entries(ov)) {
+      if (!o || o.cancelled || o.start == null || o.end == null) continue;
+      if (!(o.start < to && o.end > from)) continue;
+      const [slotId, dk] = k.split('|');
+      const slot = slots.find((s) => s.id === slotId);
+      if (!slot || !slotMatches(rc, slot, dk) || !inSeg(slot, dk)) continue;
+      found.push(recurringOcc(rc, slot, dk, o.start, o.end, o, now, groups));
+    }
+    for (const x of found) if (!seen.has(x.subKey)) { seen.add(x.subKey); out.push(x); }
   }
   return out;
+}
+
+// ---------- versões da regra de um compromisso ----------
+// Quando os dias/horários de um compromisso mudam, a regra antiga continua valendo para o que já tinha
+// começado (fica guardada em c.past com `until` = quando mudou) e a nova vale daí em diante. Ao excluir um
+// compromisso que já aconteceu, ele é só encerrado (c.ended): o passado continua na agenda.
+export function ruleOf(c) {
+  const norm = (x) => [...(x || [])].sort((a, b) => a - b);
+  return {
+    kind: c.kind,
+    slots: (c.slots || []).map((s) => ({ id: s.id, startMin: s.startMin, endMin: s.endMin, ...(s.days ? { days: norm(s.days) } : {}), ...(s.monthDays ? { monthDays: norm(s.monthDays) } : {}) })),
+    startDate: c.startDate || null,
+    untilDate: c.untilDate || null,
+  };
+}
+export const sameRule = (a, b) => JSON.stringify(ruleOf(a)) === JSON.stringify(ruleOf(b));
+
+function ruleSegments(c) {
+  const segs = [];
+  let lo = -Infinity;
+  for (const v of c.past || []) { segs.push({ rule: v, lo, hi: v.until }); lo = v.until; }
+  if (!c.ended) segs.push({ rule: c, lo, hi: Infinity });
+  return segs;
+}
+
+/** a regra atual já teve alguma ocorrência começando antes de `t`? (só olha o último ano) */
+export function startedBefore(c, t) {
+  if (c.kind === 'once') return c.start != null && c.start < t;
+  const lastUntil = (c.past || []).length ? c.past[c.past.length - 1].until : -Infinity;
+  const sd = c.startDate ? parseDateKey(c.startDate).getTime() : -Infinity;
+  const from = Math.max(lastUntil, sd, t - 400 * DAY);
+  if (from >= t) return false;
+  return commitmentOccs({ ...c, past: [], ended: false, overrides: {} }, from, t, t).some((o) => o.start < t && o.start >= from);
 }
 
 /** todas as ocorrências que tocam o intervalo [from, to) */
@@ -242,14 +283,12 @@ export function occByKey(state, key, now = Date.now()) {
     const c = state.commitments.find((x) => x.id === id);
     if (!c) return null;
     if (sub === 'once') return commitmentOccs(c, -Infinity, Infinity, now, groups)[0] || null;
-    const [slotId, dk] = String(sub).split('|');
-    const slot = (c.slots || []).find((s) => s.id === slotId);
-    if (!slot) return null;
+    const dk = String(sub).split('|')[1];
     const o = (c.overrides || {})[sub];
-    if (o?.cancelled) return null;
-    const start = o?.start ?? atMinutes(dk, slot.startMin);
-    const end = o?.end ?? start + slotDurMin(slot) * MIN;
-    return recurringOcc(c, slot, dk, start, end, o, now, groups);
+    if (!dk || o?.cancelled) return null;
+    // procura perto do dia (ou do horário remarcado): assim vale qualquer versão da regra
+    const center = o?.start ?? parseDateKey(dk).getTime();
+    return commitmentOccs(c, center - 2 * DAY, center + 3 * DAY, now, groups).find((x) => x.key === key) || null;
   }
   return null;
 }

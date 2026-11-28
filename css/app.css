@@ -622,3 +622,38 @@ b { font-weight: 600; }
 .sort-btn:active { background: rgba(142, 140, 255, .2); }
 .pick-tools { display: flex; justify-content: flex-end; margin-top: 8px; }
 .total-stat { --kc: var(--text); --kbg: var(--fill2); }
+
+/* ---------- Histórico mais limpo: foto um pouco maior + botão de detalhes ---------- */
+.thumb.md { width: 46px; height: 46px; border-radius: 11px; }
+.thumb.md.ph { font-size: 16px; }
+.hrow + .hrow::before { left: 74px; }
+.info-btn { flex: none; width: 34px; height: 34px; margin-right: -4px; border-radius: 17px; display: grid; place-items: center; color: var(--text3); }
+.info-btn:active { background: var(--fill2); color: var(--accent); }
+.as-msg small { display: block; margin-top: 6px; color: var(--text3); }
+
+/* ---------- ★ ♥ ✓ em coluna (Locais e Eventos): sobra espaço para o nome ---------- */
+.tgls.v { flex-direction: column; gap: 0; margin: -6px -2px -6px 0; }
+.tgls.v .tgl { width: 34px; height: 27px; border-radius: 13px; }
+.tgls.v .tgl .i { width: 20px; height: 20px; }
+
+/* ---------- Explorar: alternador Locais | Eventos no topo ---------- */
+.seg-row { align-items: center; margin: 6px 0 10px; }
+.seg2 { flex: 1; min-width: 0; display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--fill2); }
+.seg2-btn { flex: 1; min-width: 0; height: 38px; border-radius: 9px; font-size: 17px; font-weight: 600; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .15s, color .15s; }
+.seg2-btn small { font-size: 13px; font-weight: 600; color: var(--text3); margin-left: 3px; }
+.seg2-btn.on { background: #636366; color: var(--text); box-shadow: 0 2px 6px rgba(0, 0, 0, .3); }
+.seg2-btn.on small { color: rgba(255, 255, 255, .7); }
+
+/* ---------- noite anterior / madrugada seguinte na linha do tempo do dia ---------- */
+.tl-ext { position: absolute; left: var(--tl-l); right: 0; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .028) 0 10px, rgba(255, 255, 255, .012) 10px 20px); border-radius: 10px; }
+.tl-ext span { position: absolute; right: 10px; top: 6px; font-size: 12px; font-weight: 600; color: var(--text3); text-transform: capitalize; pointer-events: none; }
+.tl-ext + .tl-ext span { top: auto; bottom: 6px; }
+.tl-hour.ext span { color: rgba(235, 235, 245, .22); }
+.tl-hour.midnight::after { border-top: 1px solid rgba(235, 235, 245, .35); }
+.tl-b.ext-b { opacity: .55; }
+
+/* ---------- Afazeres ---------- */
+.todo-tail { height: 70vh; }
+.sec-h.past span, .sec-h.past small { opacity: .6; }
+.sec-h.today span { color: var(--accent); }
+.todo-empty { padding: 14px 16px; }

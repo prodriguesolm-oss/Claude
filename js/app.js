@@ -3,17 +3,17 @@ import { init, subscribe, runSweep } from './store.js';
 import { scheduleSync } from './push.js';
 import { html, ic, setHTML, overlayCount, alertDialog } from './ui.js';
 import { createAgendaView } from './views/agenda.js';
-import {
-  createPlacesView, createEventsView, createCommitmentsView, createFavoritesView, createHistoryView,
-} from './views/lists.js';
+import { createCommitmentsView, createFavoritesView, createHistoryView } from './views/lists.js';
+import { createExploreView } from './views/explore.js';
+import { createTodosView } from './views/todos.js';
 
 const TABS = [
   { id: 'agenda', label: 'Agenda', icon: 'calendar', make: createAgendaView },
-  { id: 'places', label: 'Locais', icon: 'pin', make: createPlacesView },
-  { id: 'events', label: 'Eventos', icon: 'ticket', make: createEventsView },
+  { id: 'todos', label: 'Afazeres', icon: 'checklist', make: createTodosView },
+  { id: 'explore', label: 'Explorar', icon: 'compass', make: createExploreView }, // Locais | Eventos
   { id: 'commitments', label: 'Compromissos', icon: 'repeat', make: createCommitmentsView },
-  { id: 'favorites', label: 'Favoritos', icon: 'star', make: createFavoritesView },
   { id: 'history', label: 'Histórico', icon: 'history', make: createHistoryView },
+  { id: 'favorites', label: 'Favoritos', icon: 'star', make: createFavoritesView },
 ];
 
 const views = new Map(); // id -> { view, el, dirty }

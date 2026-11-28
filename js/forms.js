@@ -469,6 +469,8 @@ export function openCommitmentForm({ id = null, prefill = {} } = {}) {
     right: 'Salvar',
     body: html`<form class="form" novalidate autocomplete="off">
       <div class="form-group">${textCell('name', 'Nome', prev?.name || '', { placeholder: 'Ex.: Terapia, Trabalho, Academia', required: true })}</div>
+      <div class="form-group">${switchCell('todo', 'Incluir em Afazeres', !!prev?.todo, 'checklist')}</div>
+      <div class="group-foot">Aparece na aba Afazeres. Bom para terapia, consultas…; deixe desligado para rotina como dormir e trabalho.</div>
       <div class="group-label">Frequência</div>
       <div class="form-group pad">${segHTML('kind', FREQS, kind)}</div>
       <div data-show-when="${REC}">
@@ -503,7 +505,7 @@ export function openCommitmentForm({ id = null, prefill = {} } = {}) {
       const name = f.elements.name.value.trim();
       if (!name) { shake(f.elements.name.closest('.cell')); toast('Dê um nome ao compromisso', { icon: 'alert' }); return false; }
       const k = f.elements.kind.value;
-      const data = { id: prev?.id, name, kind: k, remind: readRemind(f) };
+      const data = { id: prev?.id, name, kind: k, remind: readRemind(f), todo: !!f.elements.todo?.checked };
       if (k !== 'once') {
         const readSlots = [...c.body.querySelectorAll('.slot')].map((el) => {
           const slot = { id: el.dataset.slot, startMin: parseHM(el.querySelector('[data-f=start]').value), endMin: parseHM(el.querySelector('[data-f=end]').value) };
@@ -566,7 +568,7 @@ export function openCommitmentForm({ id = null, prefill = {} } = {}) {
     }
     if (act === 'del-slot') { e.target.closest('.slot').remove(); refreshDel(); }
     if (act === 'delete' && prev) {
-      const ok = await confirmDialog({ title: `Excluir “${prev.name}”?`, message: prev.kind !== 'once' ? 'Todas as ocorrências futuras saem da agenda. O histórico é mantido.' : 'Ele sai da agenda. O histórico é mantido.', ok: 'Excluir', destructive: true });
+      const ok = await confirmDialog({ title: `Excluir “${prev.name}”?`, message: prev.kind !== 'once' ? 'As próximas ocorrências saem da agenda. As que já aconteceram continuam nela.' : 'Ele sai da agenda.', ok: 'Excluir', destructive: true });
       if (!ok) return;
       await deleteCommitment(prev.id);
       ctl.close();
@@ -592,6 +594,7 @@ export function openItemForm({ id = null, prefill = {} } = {}) {
       <div class="group-label">Quando</div>
       <div class="form-group">${dateTimeCells('i', start)}${durationCell('duration', dur, 'i')}</div>
       <div class="group-foot">Só um título e um horário na agenda — sem precisar cadastrar local, evento ou compromisso.</div>
+      <div class="form-group" style="margin-top:14px">${switchCell('todo', 'Incluir em Afazeres', !!prev?.todo, 'checklist')}</div>
       ${remindGroup(prev?.remind)}
       ${prev ? deleteButton('Excluir horário') : ''}
     </form>`,
@@ -607,7 +610,7 @@ export function openItemForm({ id = null, prefill = {} } = {}) {
         res = await resolveConflicts({ key: prev ? `item:${prev.id}` : 'new', start: s, end, title });
         if (!res) return false;
       }
-      const saved = await saveItem({ id: prev?.id, title, note: f.elements.note.value.trim(), start: res.start, end: res.end, remind: readRemind(f) });
+      const saved = await saveItem({ id: prev?.id, title, note: f.elements.note.value.trim(), start: res.start, end: res.end, remind: readRemind(f), todo: !!f.elements.todo?.checked });
       await applyMoves(res.moves);
       if (await afterSave(prefill, `item:${saved.id}`)) return saved;
       return saved;
